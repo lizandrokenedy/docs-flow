@@ -3,6 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import {
   CreateWorkflowDto,
   CreateWorkflowStepDto,
+  DuplicateWorkflowDto,
   ReorderStepsDto,
   UpdateWorkflowDto,
   UpdateWorkflowStepDto,
@@ -19,6 +20,11 @@ export class WorkflowsController {
     return this.service.findAll();
   }
 
+  @Get('templates')
+  findTemplates() {
+    return this.service.findTemplates();
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.service.findOne(id);
@@ -27,6 +33,19 @@ export class WorkflowsController {
   @Post()
   create(@Body() dto: CreateWorkflowDto) {
     return this.service.create(dto);
+  }
+
+  @Post('from-template/:templateId')
+  createFromTemplate(
+    @Param('templateId') templateId: string,
+    @Body() dto: DuplicateWorkflowDto,
+  ) {
+    return this.service.createFromTemplate(templateId, dto);
+  }
+
+  @Post(':id/duplicate')
+  duplicate(@Param('id') id: string, @Body() dto: DuplicateWorkflowDto) {
+    return this.service.duplicate(id, dto);
   }
 
   @Patch(':id')

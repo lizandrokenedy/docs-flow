@@ -9,71 +9,91 @@ Endpoints consumidos pelo wizard público (`/w/[slug]`). Não exigem autenticaç
 
 ### `GET /public/workflows/:slug`
 
-Retorna workflow **ativo** com etapas e tipos de documento (campos públicos apenas).
+Retorna workflow **ativo** com etapas e tipos de documento.
 
-- `404` se slug não existir ou workflow estiver inativo
+- `404` se slug não existir ou workflow estiver inativo ou for template
 
 ### `POST /public/workflows/:slug/submissions`
 
-Cria nova submissão:
+Cria nova submissão com **snapshot** do workflow.
+
+**Body (opcional):**
 
 ```json
-{
-  "id": "uuid",
-  "status": "IN_PROGRESS",
-  "currentStepPosition": 0,
-  "workflow": { ... },
-  "uploads": []
-}
+{ "branchKey": "pf" }
 ```
 
-### `GET /public/submissions/:id`
-
-Estado atual da submissão para retomar o wizard.
-
-### `PATCH /public/submissions/:id/step`
-
-Atualiza posição atual do usuário no fluxo.
-
-```json
-{ "position": 3 }
-```
-
-### `POST /public/submissions/:id/steps/:stepId/upload`
-
-Upload de arquivo (`multipart/form-data`, campo `file`).
-
-**Validações:**
-
-- Extensão e MIME conforme tipo de documento (ou override da etapa)
-- Tamanho ≤ `maxSizeBytes` do tipo
-- Quantidade de arquivos ≤ `maxFiles` da etapa
-- Submissão não pode estar `COMPLETED`
-- Scan antivírus (ClamAV) no buffer, antes de gravar no disco
-
-**Erros de upload (exemplos):**
-
-| HTTP | Mensagem | Causa |
-|------|----------|-------|
-| `400` | `Formato não aceito` | Extensão inválida |
-| `400` | `Arquivo muito grande. Máximo: X MB` | Excede `maxSizeBytes` |
-| `400` | `Arquivo rejeitado: possível malware detectado.` | ClamAV detectou ameaça |
-| `400` | `Não foi possível verificar o arquivo com segurança.` | Resposta inesperada do scanner |
-| `503` | `Verificação de segurança indisponível...` | ClamAV fora do ar (fail-closed) |
-
-Detalhes do scan: [uploads.md](./uploads.md#antivírus-clamav)
+Obrigatório quando o workflow possui etapas com `branchKey` e há opções de perfil disponíveis.
 
 **Resposta:**
 
 ```json
 {
   "id": "uuid",
-  "originalName": "rg.pdf",
-  "mimeType": "application/pdf",
-  "sizeBytes": 245760,
-  "previewUrl": "/uploads/..."
+  "status": "IN_PROGRESS",
+  "branchKey": "pf",
+  "currentStepPosition": 0,
+  "workflow": { "steps": [...] },
+  "uploads": [],
+  "answers": []
 }
 ```
+
+O `workflow` retornado já reflete o snapshot gravado.
+
+### `GET /public/submissions/:id`
+
+Estado atual para retomar o wizard. Workflow resolvido a partir do snapshot quando existir.
+
+### `PATCH /public/submissions/:id/branch`
+
+Define ou altera o perfil da submissão.
+
+```json
+{ "branchKey": "pj" }
+```
+
+### `PATCH /public/submissions/:id/step`
+
+Atualiza posição atual (índice nas etapas **visíveis**, 0-based; revisão = `visibleSteps.length`).
+
+```json
+{ "position": 2 }
+```
+
+### `PATCH /public/submissions/:id/steps/:stepId/answer`
+
+Salva resposta de etapa **CHOICE**.
+
+```json
+{ "value": "Sim" }
+```
+
+- `400` se etapa não for CHOICE
+- `400` se valor não estiver em `choiceOptions`
+
+### `POST /public/submissions/:id/steps/:stepId/upload`
+
+Upload de arquivo (`multipart/form-data`, campo `file`) — apenas etapas **DOCUMENT**.
+
+**Validações:**
+
+- Extensão, MIME, tamanho, `maxFiles`
+- Submissão não pode estar `COMPLETED`
+- Scan antivírus (ClamAV) no buffer
+- `400` se etapa for CHOICE
+
+**Erros de upload (exemplos):**
+
+| HTTP | Mensagem | Causa |
+|------|----------|-------|
+| `400` | `Formato não aceito` | Extensão inválida |
+| `400` | `Arquivo muito grande...` | Excede `maxSizeBytes` |
+| `400` | `Arquivo rejeitado: possível malware detectado.` | ClamAV |
+| `400` | `Esta etapa é de escolha...` | Upload em step CHOICE |
+| `503` | `Verificação de segurança indisponível...` | ClamAV fora do ar |
+
+Detalhes: [uploads.md](./uploads.md#antivírus-clamav)
 
 ### `DELETE /public/submissions/:id/steps/:stepId/uploads/:uploadId`
 
@@ -83,22 +103,31 @@ Remove arquivo do disco e do banco.
 
 Finaliza a submissão.
 
-**Validações:**
+**Validações (etapas visíveis e obrigatórias):**
 
-- Todas as etapas com `isRequired: true` devem ter ≥ 1 upload
-- Etapas opcionais sem arquivo são permitidas
+- DOCUMENT: ≥ 1 upload
+- CHOICE: resposta registrada
 
 **Efeito:**
 
 - `status` → `COMPLETED`
-- `completedAt` → timestamp atual
-- `currentStepPosition` → total de etapas
+- `completedAt` → timestamp
+- `currentStepPosition` → `visibleSteps.length`
+
+## Visibilidade
+
+A API e o wizard usam `getVisibleSteps()` (`@docs-flow/types`) com:
+
+- `branchKey` da submissão
+- `answers` (mapa stepId → valor)
+- `completedStepIds` (steps com upload)
 
 ## Fluxo típico
 
 ```
-POST /public/workflows/{slug}/submissions
-  → loop: upload + PATCH step
+GET /public/workflows/{slug}
+  → [PATCH branch ou POST submissions com branchKey]
+  → loop: upload ou answer + PATCH step
   → POST /complete
 ```
 

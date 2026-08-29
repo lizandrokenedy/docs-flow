@@ -11,16 +11,29 @@ Fluxo guiado passo a passo para o usuário final enviar documentos de um workflo
 ## Fluxo completo
 
 ```
-Carregar workflow → Criar/retomar submissão → Etapas 1..N → Revisão → Finalizar → Sucesso
+Carregar workflow
+  → [Selecionar perfil] (se houver branchKey nas etapas)
+  → Criar/retomar submissão (com snapshot)
+  → Etapas visíveis 1..N
+  → Revisão
+  → Finalizar
+  → Sucesso
 ```
 
 ### 1. Carregamento
 
 - Busca workflow em `GET /public/workflows/{slug}`
 - Se inativo ou inexistente: mensagem de erro
-- Cria submissão em `POST /public/workflows/{slug}/submissions` (ou retoma via `localStorage`)
 
-### 2. Persistência de sessão
+### 2. Seleção de perfil (opcional)
+
+Quando alguma etapa possui `branchKey`, o componente `BranchPicker` é exibido **antes** das etapas de documento.
+
+- Cria submissão com `POST /public/workflows/{slug}/submissions` + `{ "branchKey": "pf" }`
+- Ou atualiza com `PATCH /public/submissions/{id}/branch`
+- Labels amigáveis para `herdeiro`, `inventariante`, `advogado`; demais chaves aparecem como estão (`pf`, `pj`, etc.)
+
+### 3. Persistência de sessão
 
 Chave no `localStorage`: `docsflow_submission_{slug}`
 
@@ -29,57 +42,91 @@ Chave no `localStorage`: `docsflow_submission_{slug}`
 - Restaura a posição via `currentStepPosition` da API
 - Remove a chave ao finalizar ou se a submissão for inválida
 
-### 3. Stepper de progresso
+### 4. Etapas visíveis
 
-Componente `WorkflowStepper`:
+O wizard **não** mostra todas as etapas do workflow — apenas as **visíveis** para o perfil e progresso atual (`getVisibleSteps` em `@docs-flow/types`):
 
-- **≤ 5 etapas:** stepper horizontal (desktop) ou vertical (mobile)
+| Filtro | Regra |
+|--------|-------|
+| Ramificação | Etapa com `branchKey` só aparece se igual ao perfil da submissão |
+| Condicional | Etapa com `conditionStepId` só aparece após a etapa referenciada ser preenchida |
+
+**Preenchimento:**
+
+- Etapa **DOCUMENT** → pelo menos um upload na etapa
+- Etapa **CHOICE** → resposta salva via API
+
+### 5. Stepper de progresso
+
+Componente `WorkflowStepper` — recebe apenas etapas **visíveis**:
+
+- **< 6 etapas:** stepper horizontal (desktop) ou vertical (mobile)
 - **≥ 6 etapas:** modo compacto com barra de progresso, contador "Etapa X de Y" e faixa rolável de ícones
 
-**Regra de conclusão:** etapa só aparece como concluída após o usuário clicar em **Próximo** (não antecipa etapas opcionais).
+**Regra de conclusão:** etapa só aparece como concluída após o usuário clicar em **Próximo**.
 
-### 4. Cada etapa
+### 6. Cada etapa
+
+#### Etapa DOCUMENT
 
 - `StepInstructions` — título, instruções Markdown, ajuda, formatos e tamanho máximo
 - `FileDropzone` — upload por arrastar, clique ou câmera (imagens)
 
-#### Upload
+**Upload:**
 
 - Validação client-side: extensão e tamanho
 - Upload via XHR com barra de progresso
-- Scan antivírus no servidor (ClamAV) — arquivos maliciosos são rejeitados com mensagem de erro na UI
-- Múltiplos arquivos quando `maxFiles > 1`:
-  - Contador "X de Y arquivo(s)"
-  - Área de upload permanece visível até o limite
-- Preview de imagens após envio
-- Botão remover arquivo
+- Scan antivírus no servidor (ClamAV)
+- Múltiplos arquivos quando `maxFiles > 1`
+- Preview de imagens; botão remover
+
+#### Etapa CHOICE
+
+- `ChoiceStep` — opções em radio buttons
+- Sem upload de arquivo
+- Ao clicar **Próximo**, salva resposta em `PATCH /public/submissions/{id}/steps/{stepId}/answer`
 
 #### Navegação
 
 | Botão | Comportamento |
 |-------|---------------|
-| Voltar | Retorna à etapa anterior; atualiza `currentStepPosition` na API |
-| Próximo | Avança se etapa obrigatória tiver arquivo OU se etapa for opcional |
+| Voltar | Etapa anterior; atualiza `currentStepPosition` na API |
+| Próximo | Avança se obrigatória estiver preenchida (arquivo ou resposta CHOICE) |
 
-### 5. Etapa de revisão
+Ao avançar após preencher uma etapa, novas etapas condicionais podem **entrar** na lista visível (stepper atualiza após refetch).
 
-Componente `UploadReview` — resumo de todas as etapas com arquivos enviados (ou "Nenhum arquivo" em opcionais vazias).
+### 7. Etapa de revisão
 
-Cada etapa exibe o botão **Alterar**, que retorna ao passo correspondente para revisar, trocar ou enviar novos arquivos. A posição é sincronizada na API via `PATCH /public/submissions/{id}/step`.
+Componente `UploadReview` — resumo das etapas **visíveis**:
+
+- DOCUMENT: arquivos enviados
+- CHOICE: texto `Resposta: {valor}`
+- Botão **Alterar** por etapa — volta ao índice correspondente
 
 Botão **Finalizar envio** chama `POST /public/submissions/{id}/complete`.
 
-### 6. Tela de sucesso
+### 8. Tela de sucesso
 
 Componente `SuccessScreen`:
 
 - Confirmação de envio
-- ID da submissão (para referência)
-- Botão **Iniciar novo envio** — limpa sessão e cria nova submissão
+- ID da submissão
+- Botão **Iniciar novo envio**
 
 ## Validações na finalização
 
-A API verifica se **todas as etapas obrigatórias** possuem pelo menos um arquivo. Etapas opcionais sem upload são permitidas.
+A API valida apenas etapas **visíveis** e **obrigatórias**:
+
+- DOCUMENT: ≥ 1 upload
+- CHOICE: resposta registrada
+
+Etapas opcionais vazias são permitidas.
+
+`currentStepPosition` após completar = quantidade de etapas visíveis (índice da revisão).
+
+## Snapshot
+
+Ao criar a submissão, a API grava `workflowSnapshot`. Submissões em andamento usam as etapas congeladas — alterações posteriores no admin não afetam o envio.
 
 ## API utilizada
 
@@ -89,7 +136,7 @@ Veja [api/submissoes-publicas.md](../api/submissoes-publicas.md)
 
 | Slug | Descrição |
 |------|-----------|
-| `abertura-conta` | 3 etapas — RG, CPF, comprovante |
+| `abertura-conta` | 3 etapas em cadeia — RG → CPF → comprovante |
 | `inventario-judicial` | 19 etapas — inventário judicial completo |
 
 Detalhes em [seed-e-exemplos.md](../seed-e-exemplos.md)

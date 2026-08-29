@@ -6,7 +6,7 @@
 
 ## Propósito
 
-Listar, criar e excluir workflows de coleta de documentos.
+Listar, criar, duplicar e excluir workflows de coleta de documentos.
 
 ## Funcionalidades
 
@@ -16,33 +16,36 @@ Listar, criar e excluir workflows de coleta de documentos.
 |--------|-----------|
 | Nome | Título do workflow |
 | Slug | Identificador da URL pública (`/w/{slug}`) |
+| Versão | `version` do workflow |
 | Status | Ativo ou Inativo |
 | Etapas | Quantidade de steps |
 | Submissões | Quantidade de envios recebidos |
-| Ações | Editar / Abrir público / Copiar link / Excluir |
+| Ações | Editar / Duplicar / Abrir público / Copiar link / Excluir |
+
+> Templates (`isTemplate: true`) **não** aparecem nesta lista — apenas em **Usar template**.
 
 ### Criar workflow
 
-Diálogo com:
+Diálogo com nome e descrição. Slug gerado via `slugify`. Workflow criado **inativo** e sem etapas → redireciona ao editor.
 
-| Campo | Descrição |
-|-------|-----------|
-| Nome | Gera slug automaticamente via `slugify` (ex.: "Abertura de Conta" → `abertura-conta`) |
-| Descrição | Texto exibido no topo do wizard público |
+### Usar template
 
-O workflow é criado **inativo** e sem etapas. Após salvar, redireciona para o editor.
+Diálogo lista `GET /workflows/templates`. Ao selecionar, chama `POST /workflows/from-template/:id` e redireciona ao editor do novo workflow (inativo, não-template).
+
+### Duplicar
+
+Ícone na linha do workflow → `POST /workflows/:id/duplicate`. Nova cópia inativa com slug `-copia`.
 
 ### Excluir workflow
 
 - Confirmação obrigatória
-- Se houver submissões, exibe aviso de que uploads serão removidos em cascata
-- Remove workflow, etapas, submissões e arquivos associados
-- Toast de sucesso ou erro após a operação
+- Aviso se houver submissões (uploads removidos em cascata)
+- Toast de sucesso ou erro
 
 ## Ciclo de vida recomendado
 
-1. Criar workflow (inativo)
-2. Adicionar etapas no editor
+1. Criar workflow ou usar template (inativo)
+2. Adicionar etapas no editor (condicionais, ramificações)
 3. Testar no preview
 4. Ativar quando pronto
 5. Compartilhar link `/w/{slug}`
@@ -50,7 +53,10 @@ O workflow é criado **inativo** e sem etapas. Após salvar, redireciona para o 
 ## API utilizada
 
 - `GET /workflows`
+- `GET /workflows/templates`
 - `POST /workflows`
+- `POST /workflows/from-template/:templateId`
+- `POST /workflows/:id/duplicate`
 - `DELETE /workflows/:id`
 
 Veja também: [editor-workflow.md](./editor-workflow.md), [api/workflows.md](../api/workflows.md)

@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+export * from './workflow-logic';
+
+export const StepKindSchema = z.enum(['DOCUMENT', 'CHOICE']);
+
 export const DocumentTypeSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1),
@@ -29,6 +33,11 @@ export const WorkflowStepSchema = z.object({
   helpText: z.string().nullable().optional(),
   exampleUrl: z.string().url().nullable().optional().or(z.literal('')),
   position: z.number().int().min(0),
+  stepKind: StepKindSchema.default('DOCUMENT'),
+  branchKey: z.string().nullable().optional(),
+  conditionStepId: z.string().uuid().nullable().optional(),
+  conditionValue: z.string().nullable().optional(),
+  choiceOptions: z.array(z.string()).default([]),
   isRequired: z.boolean(),
   maxFiles: z.number().int().min(1).default(1),
   acceptedExtensionsOverride: z.array(z.string()).nullable().optional(),
@@ -44,6 +53,11 @@ export const CreateWorkflowStepSchema = z.object({
   helpText: z.string().optional(),
   exampleUrl: z.string().url().optional().or(z.literal('')),
   position: z.number().int().min(0).optional(),
+  stepKind: StepKindSchema.optional(),
+  branchKey: z.string().optional(),
+  conditionStepId: z.string().uuid().optional().or(z.literal('')),
+  conditionValue: z.string().optional(),
+  choiceOptions: z.array(z.string()).optional(),
   isRequired: z.boolean().default(true),
   maxFiles: z.number().int().min(1).default(1),
   acceptedExtensionsOverride: z.array(z.string()).optional(),
@@ -66,6 +80,9 @@ export const WorkflowSchema = z.object({
   slug: z.string().min(1),
   description: z.string().nullable().optional(),
   isActive: z.boolean(),
+  isTemplate: z.boolean().default(false),
+  templateCategory: z.string().nullable().optional(),
+  version: z.number().int().min(1).default(1),
   steps: z.array(WorkflowStepSchema).optional(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
@@ -76,9 +93,25 @@ export const CreateWorkflowSchema = z.object({
   slug: z.string().min(1).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug inválido'),
   description: z.string().optional(),
   isActive: z.boolean().default(false),
+  isTemplate: z.boolean().default(false),
+  templateCategory: z.string().optional(),
 });
 
 export const UpdateWorkflowSchema = CreateWorkflowSchema.partial();
+
+export const DuplicateWorkflowSchema = z.object({
+  name: z.string().min(1).optional(),
+  slug: z.string().min(1).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug inválido').optional(),
+});
+
+export const SubmissionAnswerSchema = z.object({
+  id: z.string().uuid(),
+  submissionId: z.string().uuid(),
+  workflowStepId: z.string().uuid(),
+  value: z.string(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+});
 
 export const SubmissionStatusSchema = z.enum(['DRAFT', 'IN_PROGRESS', 'COMPLETED']);
 
@@ -98,9 +131,11 @@ export const SubmissionSchema = z.object({
   workflowId: z.string().uuid(),
   status: SubmissionStatusSchema,
   currentStepPosition: z.number().int().min(0),
+  branchKey: z.string().nullable().optional(),
   startedAt: z.coerce.date(),
   completedAt: z.coerce.date().nullable().optional(),
   uploads: z.array(StepUploadSchema).optional(),
+  answers: z.array(SubmissionAnswerSchema).optional(),
   workflow: WorkflowSchema.optional(),
 });
 
@@ -126,6 +161,11 @@ export const PublicWorkflowSchema = WorkflowSchema.pick({
       helpText: true,
       exampleUrl: true,
       position: true,
+      stepKind: true,
+      branchKey: true,
+      conditionStepId: true,
+      conditionValue: true,
+      choiceOptions: true,
       isRequired: true,
       maxFiles: true,
       acceptedExtensionsOverride: true,
@@ -150,6 +190,8 @@ export type UpdateWorkflowStep = z.infer<typeof UpdateWorkflowStepSchema>;
 export type Workflow = z.infer<typeof WorkflowSchema>;
 export type CreateWorkflow = z.infer<typeof CreateWorkflowSchema>;
 export type UpdateWorkflow = z.infer<typeof UpdateWorkflowSchema>;
+export type DuplicateWorkflow = z.infer<typeof DuplicateWorkflowSchema>;
+export type SubmissionAnswer = z.infer<typeof SubmissionAnswerSchema>;
 export type Submission = z.infer<typeof SubmissionSchema>;
 export type SubmissionStatus = z.infer<typeof SubmissionStatusSchema>;
 export type StepUpload = z.infer<typeof StepUploadSchema>;

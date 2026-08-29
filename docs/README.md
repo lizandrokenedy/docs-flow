@@ -1,6 +1,8 @@
 # Docs Flow — Documentação
 
-Sistema de coleta guiada de documentos. Permite criar **workflows** (fluxos) com etapas configuráveis, cada uma exigindo um tipo de documento, e disponibilizar um link público para que usuários enviem arquivos passo a passo.
+Sistema de coleta guiada de documentos. Permite criar **workflows** (fluxos) com etapas configuráveis — documentos, perguntas, ramificações e condicionais — e disponibilizar um link público para que usuários enviem arquivos passo a passo.
+
+**Recursos avançados:** templates, duplicação, snapshot por submissão, ClamAV. Detalhes em [visao-geral.md](./visao-geral.md) e [seed-e-exemplos.md](./seed-e-exemplos.md).
 
 ## Índice
 

@@ -61,7 +61,13 @@ Ambos os frontends importam `@docs-flow/ui` e `@docs-flow/types`.
 
 ## Pacote `@docs-flow/types`
 
-Contratos compartilhados: schemas Zod, tipos TypeScript e funções utilitárias (`slugify`, `formatFileSize`, `bytesToMegabytes`, `getStepAcceptedExtensions`).
+Contratos compartilhados:
+
+- Schemas Zod e tipos TypeScript (`Workflow`, `WorkflowStep`, `Submission`, etc.)
+- Utilitários: `slugify`, `formatFileSize`, `bytesToMegabytes`, `getStepAcceptedExtensions`
+- **Lógica de workflow** (`workflow-logic.ts`): `getVisibleSteps`, `isStepVisible`, `completedStepIdsFromUploads`, `getBranchOptions`, `WorkflowSnapshot`
+
+Usado pela API, web e admin para manter regras de visibilidade consistentes.
 
 ## Pacote `@docs-flow/ui`
 
@@ -69,6 +75,7 @@ Componentes visuais reutilizados no wizard público e no preview do admin:
 
 - `WorkflowStepper`, `StepInstructions`, `FileDropzone`
 - `UploadReview`, `SuccessScreen`, `AnimatedStepPanel`
+- `ChoiceStep`, `BranchPicker`, `formatBranchLabel`
 - `docsFlowTheme` (tema MUI)
 
 ## API — módulos NestJS

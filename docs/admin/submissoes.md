@@ -25,6 +25,11 @@ Visualizar todos os envios de documentos feitos pelos usuários finais nos workf
 
 Clique em qualquer linha para abrir o [detalhe da submissão](./detalhe-submissao.md).
 
+## Lacunas de UI (dados na API, não exibidos)
+
+- Coluna **Perfil** (`branchKey`) — não presente na listagem
+- Respostas de etapas **CHOICE** — não listadas
+
 ## Status possíveis
 
 | Status | Significado |

@@ -38,12 +38,18 @@ async function upsertDocumentType(data: DocumentTypeSeed) {
 async function seedAberturaConta(documentTypes: Record<string, { id: string }>) {
   const workflow = await prisma.workflow.upsert({
     where: { slug: 'abertura-conta' },
-    update: {},
+    update: {
+      isTemplate: false,
+      templateCategory: 'onboarding',
+      isActive: true,
+    },
     create: {
       name: 'Abertura de Conta',
       slug: 'abertura-conta',
       description: 'Envie seus documentos para abertura de conta bancária',
       isActive: true,
+      isTemplate: false,
+      templateCategory: 'onboarding',
     },
   });
 
@@ -52,47 +58,179 @@ async function seedAberturaConta(documentTypes: Record<string, { id: string }>) 
   });
 
   if (existingSteps === 0) {
-    await prisma.workflowStep.createMany({
-      data: [
-        {
-          workflowId: workflow.id,
-          documentTypeId: documentTypes.rg.id,
-          title: 'Documento de Identidade (RG)',
-          instructions:
-            'Envie uma foto ou PDF do seu **RG** (frente e verso, se possível).\n\nO documento deve estar legível e dentro da validade.',
-          helpText: 'Use boa iluminação e evite reflexos na foto.',
-          position: 0,
-          isRequired: true,
-          maxFiles: 1,
-          acceptedExtensionsOverride: [],
-        },
-        {
-          workflowId: workflow.id,
-          documentTypeId: documentTypes.cpf.id,
-          title: 'CPF',
-          instructions:
-            'Envie o documento do seu **CPF** ou a página do RG que contém o número do CPF.',
-          helpText: 'Aceitamos foto do cartão do CPF ou print do app da Receita Federal.',
-          position: 1,
-          isRequired: true,
-          maxFiles: 1,
-          acceptedExtensionsOverride: [],
-        },
-        {
-          workflowId: workflow.id,
-          documentTypeId: documentTypes.comprovanteResidencia.id,
-          title: 'Comprovante de Residência',
-          instructions:
-            'Envie um comprovante de residência recente (últimos 3 meses).\n\n- Conta de luz, água ou gás\n- Extrato bancário\n- Contrato de aluguel',
-          helpText: 'O endereço deve estar visível e legível.',
-          position: 2,
-          isRequired: true,
-          maxFiles: 1,
-          acceptedExtensionsOverride: [],
-        },
-      ],
+    const rgStep = await prisma.workflowStep.create({
+      data: {
+        workflowId: workflow.id,
+        documentTypeId: documentTypes.rg.id,
+        title: 'Documento de Identidade (RG)',
+        instructions:
+          'Envie uma foto ou PDF do seu **RG** (frente e verso, se possível).\n\nO documento deve estar legível e dentro da validade.',
+        helpText: 'Use boa iluminação e evite reflexos na foto.',
+        position: 0,
+        isRequired: true,
+        maxFiles: 1,
+        acceptedExtensionsOverride: [],
+      },
+    });
+
+    const cpfStep = await prisma.workflowStep.create({
+      data: {
+        workflowId: workflow.id,
+        documentTypeId: documentTypes.cpf.id,
+        title: 'CPF',
+        instructions:
+          'Envie o documento do seu **CPF** ou a página do RG que contém o número do CPF.',
+        helpText: 'Aceitamos foto do cartão do CPF ou print do app da Receita Federal.',
+        position: 1,
+        conditionStepId: rgStep.id,
+        isRequired: true,
+        maxFiles: 1,
+        acceptedExtensionsOverride: [],
+      },
+    });
+
+    await prisma.workflowStep.create({
+      data: {
+        workflowId: workflow.id,
+        documentTypeId: documentTypes.comprovanteResidencia.id,
+        title: 'Comprovante de Residência',
+        instructions:
+          'Envie um comprovante de residência recente (últimos 3 meses).\n\n- Conta de luz, água ou gás\n- Extrato bancário\n- Contrato de aluguel',
+        helpText: 'O endereço deve estar visível e legível.',
+        position: 2,
+        conditionStepId: cpfStep.id,
+        isRequired: true,
+        maxFiles: 1,
+        acceptedExtensionsOverride: [],
+      },
     });
   }
+
+  return workflow;
+}
+
+async function seedTemplateCadastroFornecedor(documentTypes: Record<string, { id: string }>) {
+  const workflow = await prisma.workflow.upsert({
+    where: { slug: 'template-cadastro-fornecedor' },
+    update: {
+      name: 'Cadastro de Fornecedor',
+      description:
+        'Template genérico para homologação de fornecedores. Suporta ramificação PF/PJ e etapa condicional de exemplo.',
+      isTemplate: true,
+      isActive: false,
+      templateCategory: 'fornecedores',
+    },
+    create: {
+      name: 'Cadastro de Fornecedor',
+      slug: 'template-cadastro-fornecedor',
+      description:
+        'Template genérico para homologação de fornecedores. Suporta ramificação PF/PJ e etapa condicional de exemplo.',
+      isActive: false,
+      isTemplate: true,
+      templateCategory: 'fornecedores',
+    },
+  });
+
+  const existingSteps = await prisma.workflowStep.count({
+    where: { workflowId: workflow.id },
+  });
+
+  if (existingSteps > 0) {
+    return workflow;
+  }
+
+  const perguntaRegistro = await prisma.workflowStep.create({
+    data: {
+      workflowId: workflow.id,
+      documentTypeId: documentTypes.rg.id,
+      title: 'Fornece produtos que exigem registro em órgão regulador?',
+      instructions:
+        'Esta pergunta ajuda a definir se documentos adicionais de conformidade serão solicitados.\n\nEx.: alimentos, cosméticos, equipamentos médicos.',
+      position: 0,
+      stepKind: 'CHOICE',
+      choiceOptions: ['Sim', 'Não'],
+      isRequired: true,
+      maxFiles: 1,
+      acceptedExtensionsOverride: [],
+    },
+  });
+
+  await prisma.workflowStep.createMany({
+    data: [
+      {
+        workflowId: workflow.id,
+        documentTypeId: documentTypes.rg.id,
+        title: 'Documento de Identidade (PF)',
+        instructions: 'Envie RG ou CNH legível do responsável pelo fornecedor **pessoa física**.',
+        helpText: 'Aplicável ao perfil Pessoa Física.',
+        position: 1,
+        branchKey: 'pf',
+        isRequired: true,
+        maxFiles: 1,
+        acceptedExtensionsOverride: [],
+      },
+      {
+        workflowId: workflow.id,
+        documentTypeId: documentTypes.cpf.id,
+        title: 'CPF (PF)',
+        instructions: 'Envie o CPF do fornecedor pessoa física.',
+        position: 2,
+        branchKey: 'pf',
+        isRequired: true,
+        maxFiles: 1,
+        acceptedExtensionsOverride: [],
+      },
+      {
+        workflowId: workflow.id,
+        documentTypeId: documentTypes.documentosSocietarios.id,
+        title: 'Contrato Social ou Requerimento de Empresário',
+        instructions:
+          'Envie o contrato social consolidado, alterações e última versão registrada na Junta Comercial.',
+        helpText: 'Aplicável ao perfil Pessoa Jurídica.',
+        position: 3,
+        branchKey: 'pj',
+        isRequired: true,
+        maxFiles: 3,
+        acceptedExtensionsOverride: [],
+      },
+      {
+        workflowId: workflow.id,
+        documentTypeId: documentTypes.certidoesNegativas.id,
+        title: 'Certidões Negativas (PJ)',
+        instructions:
+          'Certidões negativas de débitos federais, estaduais e trabalhistas da empresa, quando aplicável.',
+        position: 4,
+        branchKey: 'pj',
+        isRequired: true,
+        maxFiles: 5,
+        acceptedExtensionsOverride: [],
+      },
+      {
+        workflowId: workflow.id,
+        documentTypeId: documentTypes.extratoBancario.id,
+        title: 'Dados bancários para pagamento',
+        instructions:
+          'Envie comprovante bancário com agência, conta e titular para cadastro financeiro.',
+        position: 5,
+        isRequired: true,
+        maxFiles: 1,
+        acceptedExtensionsOverride: [],
+      },
+      {
+        workflowId: workflow.id,
+        documentTypeId: documentTypes.certidoesNegativas.id,
+        title: 'Certificado de conformidade regulatória',
+        instructions:
+          'Envie certificados, alvarás ou registros exigidos pelo órgão regulador do seu segmento.',
+        position: 6,
+        conditionStepId: perguntaRegistro.id,
+        conditionValue: 'Sim',
+        isRequired: true,
+        maxFiles: 3,
+        acceptedExtensionsOverride: [],
+      },
+    ],
+  });
 
   return workflow;
 }
@@ -105,6 +243,8 @@ async function seedInventarioJudicial(documentTypes: Record<string, { id: string
       description:
         'Coleta de documentos para abertura e instrução de inventário judicial, quando há disputa entre herdeiros, testamento ou herdeiros incapazes.',
       isActive: true,
+      isTemplate: false,
+      templateCategory: 'inventario',
     },
     create: {
       name: 'Inventário Judicial — Documentos da Herança',
@@ -112,6 +252,8 @@ async function seedInventarioJudicial(documentTypes: Record<string, { id: string
       description:
         'Coleta de documentos para abertura e instrução de inventário judicial, quando há disputa entre herdeiros, testamento ou herdeiros incapazes.',
       isActive: true,
+      isTemplate: false,
+      templateCategory: 'inventario',
     },
   });
 
@@ -492,9 +634,11 @@ async function main() {
 
   const aberturaConta = await seedAberturaConta(documentTypes);
   const inventarioJudicial = await seedInventarioJudicial(documentTypes);
+  const templateCadastroFornecedor = await seedTemplateCadastroFornecedor(documentTypes);
 
   console.log('Seed completed:', {
     workflows: [aberturaConta.slug, inventarioJudicial.slug],
+    templates: [templateCadastroFornecedor.slug],
     documentTypes: Object.keys(documentTypes).length,
   });
 }

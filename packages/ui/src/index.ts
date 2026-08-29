@@ -1,6 +1,10 @@
 export { docsFlowTheme } from './theme';
 export { AnimatedStepPanel } from './AnimatedStepPanel';
 export type { AnimatedStepPanelProps } from './AnimatedStepPanel';
+export { ChoiceStep } from './ChoiceStep';
+export type { ChoiceStepProps } from './ChoiceStep';
+export { BranchPicker, formatBranchLabel } from './BranchPicker';
+export type { BranchPickerProps, BranchOption } from './BranchPicker';
 export { WorkflowStepper } from './WorkflowStepper';
 export type { WorkflowStepperProps } from './WorkflowStepper';
 export { StepInstructions } from './StepInstructions';

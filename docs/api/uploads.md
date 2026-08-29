@@ -39,6 +39,8 @@ Extensões aceitas são resolvidas por `getStepAcceptedExtensions()`:
 1. `acceptedExtensionsOverride` da etapa (se preenchido)
 2. Senão, `allowedExtensions` do tipo de documento
 
+**Etapas CHOICE:** o endpoint de upload retorna `400` se `stepKind === 'CHOICE'` — respostas usam `PATCH .../answer`.
+
 ## Antivírus (ClamAV)
 
 **Arquivos:**

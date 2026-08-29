@@ -20,7 +20,7 @@
 | Document Types | `/document-types` | [tipos-de-documento.md](./tipos-de-documento.md) |
 | Workflows | `/workflows` | [workflows.md](./workflows.md) |
 | Submissions (admin) | `/submissions` | [submissoes-admin.md](./submissoes-admin.md) |
-| Public | `/public` | [submissoes-publicas.md](./submissoes-publicas.md) |
+| Public | `/public` | [submissoes-publicas.md](./submissoes-publicas.md) — inclui branch, respostas CHOICE e snapshot |
 | Uploads (serviço) | `/uploads/*` | [uploads.md](./uploads.md) |
 
 ## Formato de resposta

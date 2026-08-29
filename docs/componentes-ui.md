@@ -78,9 +78,39 @@ Card com instruções da etapa:
 
 Tela de revisão pré-finalização:
 
-- Lista todas as etapas
-- Indicador de conclusão (obrigatório com/sem arquivo)
-- Nome e tamanho de cada arquivo
+- Lista etapas visíveis do fluxo
+- DOCUMENT: arquivos com nome e tamanho; "Nenhum arquivo" em opcionais vazias
+- CHOICE: exibe `Resposta: {valor}` em vez de arquivo
+- Botão **Alterar** por etapa (`onEditStep`)
+
+### `ChoiceStep`
+
+**Arquivo:** `ChoiceStep.tsx`
+
+Etapa de pergunta com opções em radio buttons.
+
+| Prop | Descrição |
+|------|-----------|
+| title, instructions, helpText | Conteúdo da etapa |
+| options | Lista de strings (`choiceOptions`) |
+| value / onChange | Resposta selecionada |
+
+Sem upload de arquivo.
+
+### `BranchPicker`
+
+**Arquivo:** `BranchPicker.tsx`
+
+Seleção de perfil antes das etapas de documento.
+
+| Prop | Descrição |
+|------|-----------|
+| options | `{ key, label }[]` |
+| onSelect | Callback com `branchKey` |
+
+### `formatBranchLabel`
+
+Converte chaves conhecidas (`herdeiro`, `inventariante`, `advogado`) em labels amigáveis; demais chaves retornam o valor original.
 
 ### `SuccessScreen`
 

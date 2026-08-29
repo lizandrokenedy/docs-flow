@@ -4,6 +4,14 @@ Sistema de workflow de documentos com monorepo.
 
 **Documentação completa:** [docs/README.md](./docs/README.md) — inclui [roadmap e lacunas](./docs/roadmap-e-lacunas.md).
 
+## Funcionalidades principais
+
+- Workflows com etapas ordenáveis, **condicionais** (após etapa anterior preenchida), **ramificações** e perguntas **CHOICE**
+- Templates reutilizáveis e duplicação de workflows
+- Wizard público com revisão e retomada de sessão
+- Scan antivírus (ClamAV) nos uploads
+- Admin com toast, copiar link e editor visual de fluxos
+
 ## Stack
 
 - **API**: NestJS + Prisma + PostgreSQL

@@ -14,6 +14,11 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
 import { SubmissionsService } from './submissions.service';
+import {
+  CreateSubmissionDto,
+  SaveStepAnswerDto,
+  UpdateSubmissionBranchDto,
+} from './dto/submission.dto';
 
 @ApiTags('public')
 @Controller('public')
@@ -26,8 +31,8 @@ export class PublicSubmissionsController {
   }
 
   @Post('workflows/:slug/submissions')
-  createSubmission(@Param('slug') slug: string) {
-    return this.service.createSubmission(slug);
+  createSubmission(@Param('slug') slug: string, @Body() dto: CreateSubmissionDto) {
+    return this.service.createSubmission(slug, dto);
   }
 
   @Get('submissions/:id')
@@ -38,6 +43,20 @@ export class PublicSubmissionsController {
   @Patch('submissions/:id/step')
   updateStep(@Param('id') id: string, @Body('position') position: number) {
     return this.service.updateCurrentStep(id, position);
+  }
+
+  @Patch('submissions/:id/branch')
+  updateBranch(@Param('id') id: string, @Body() dto: UpdateSubmissionBranchDto) {
+    return this.service.setBranch(id, dto);
+  }
+
+  @Patch('submissions/:id/steps/:stepId/answer')
+  saveAnswer(
+    @Param('id') id: string,
+    @Param('stepId') stepId: string,
+    @Body() dto: SaveStepAnswerDto,
+  ) {
+    return this.service.saveStepAnswer(id, stepId, dto);
   }
 
   @Post('submissions/:id/steps/:stepId/upload')

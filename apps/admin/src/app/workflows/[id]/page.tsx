@@ -18,6 +18,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import AddIcon from '@mui/icons-material/Add';
+import ControlPointDuplicateIcon from '@mui/icons-material/ControlPointDuplicate';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
@@ -34,6 +35,7 @@ import {
   DialogTitle,
   FormControl,
   FormControlLabel,
+  FormHelperText,
   IconButton,
   InputLabel,
   MenuItem,
@@ -62,6 +64,10 @@ interface StepForm {
   instructions: string;
   helpText: string;
   exampleUrl: string;
+  stepKind: 'DOCUMENT' | 'CHOICE';
+  branchKey: string;
+  conditionStepId: string;
+  choiceOptions: string;
   isRequired: boolean;
   maxFiles: number;
   acceptedExtensionsOverride: string;
@@ -73,6 +79,10 @@ const defaultStepForm: StepForm = {
   instructions: '',
   helpText: '',
   exampleUrl: '',
+  stepKind: 'DOCUMENT',
+  branchKey: '',
+  conditionStepId: '',
+  choiceOptions: '',
   isRequired: true,
   maxFiles: 1,
   acceptedExtensionsOverride: '',
@@ -108,7 +118,10 @@ function SortableStepItem({
         <Box sx={{ flex: 1 }} onClick={onEdit} style={{ cursor: 'pointer' }}>
           <Typography variant="subtitle1">{step.title}</Typography>
           <Typography variant="caption" color="text.secondary">
-            {step.documentType?.name} {step.isRequired ? '· Obrigatório' : '· Opcional'}
+            {step.stepKind === 'CHOICE' ? 'Escolha' : step.documentType?.name}
+            {step.branchKey ? ` · ${step.branchKey}` : ''}
+            {step.conditionStepId ? ' · Condicional' : ''}
+            {step.isRequired ? ' · Obrigatório' : ' · Opcional'}
           </Typography>
         </Box>
         <IconButton size="small" color="error" onClick={onDelete}>
@@ -135,6 +148,8 @@ export default function WorkflowEditorPage() {
     slug: '',
     description: '',
     isActive: false,
+    isTemplate: false,
+    templateCategory: '',
   });
 
   const sensors = useSensors(
@@ -159,6 +174,8 @@ export default function WorkflowEditorPage() {
         slug: workflow.slug,
         description: workflow.description || '',
         isActive: workflow.isActive,
+        isTemplate: workflow.isTemplate ?? false,
+        templateCategory: workflow.templateCategory || '',
       });
     }
   }, [workflow]);
@@ -175,11 +192,27 @@ export default function WorkflowEditorPage() {
       instructions: data.instructions || undefined,
       helpText: data.helpText || undefined,
       exampleUrl: data.exampleUrl || undefined,
+      stepKind: data.stepKind,
+      branchKey: data.branchKey || undefined,
+      conditionStepId: data.conditionStepId || null,
+      choiceOptions: data.choiceOptions
+        .split(',')
+        .map((option) => option.trim())
+        .filter(Boolean),
       isRequired: data.isRequired,
       maxFiles: data.maxFiles,
       acceptedExtensionsOverride: extensions.length > 0 ? extensions : undefined,
     };
   };
+
+  const duplicateMutation = useMutation({
+    mutationFn: () => api.post<Workflow>(`/workflows/${workflowId}/duplicate`, {}),
+    onSuccess: (data) => {
+      showToast('Workflow duplicado');
+      window.location.href = `/workflows/${data.id}`;
+    },
+    onError: (err: Error) => showToast(err.message, 'error'),
+  });
 
   const updateWorkflowMutation = useMutation({
     mutationFn: (data: typeof generalForm) => api.patch(`/workflows/${workflowId}`, data),
@@ -229,10 +262,17 @@ export default function WorkflowEditorPage() {
 
   const reorderMutation = useMutation({
     mutationFn: (steps: { id: string; position: number }[]) =>
-      api.patch(`/workflows/${workflowId}/steps/reorder`, { steps }),
-    onSuccess: () => {
+      api.patch<{ clearedConditions?: number }>(`/workflows/${workflowId}/steps/reorder`, { steps }),
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['workflow', workflowId] });
-      showToast('Ordem dos steps atualizada');
+      if (data.clearedConditions && data.clearedConditions > 0) {
+        showToast(
+          `Ordem atualizada. ${data.clearedConditions} condicional(is) removida(s) por ficarem inválidas.`,
+          'error',
+        );
+      } else {
+        showToast('Ordem dos steps atualizada');
+      }
     },
     onError: (err: Error) => showToast(err.message, 'error'),
   });
@@ -248,15 +288,40 @@ export default function WorkflowEditorPage() {
     reorderMutation.mutate(reordered.map((s, i) => ({ id: s.id, position: i })));
   };
 
+  const getConditionCandidateSteps = (steps: WorkflowStep[], forPosition: number, excludeId?: string) =>
+    steps.filter((item) => item.position < forPosition && item.id !== excludeId);
+
+  const getConditionHelperText = (forPosition: number) => {
+    if (forPosition === 0) {
+      return 'Primeira etapa do fluxo — sempre visível para o usuário.';
+    }
+
+    return 'A etapa só aparece depois que a etapa selecionada for preenchida. Se você reordenar o fluxo, condicionais inválidas são removidas automaticamente.';
+  };
+
   const openStepDialog = (step?: WorkflowStep) => {
+    const steps = [...(workflow?.steps || [])].sort((a, b) => a.position - b.position);
+
     if (step) {
+      const validConditionIds = new Set(
+        getConditionCandidateSteps(steps, step.position, step.id).map((item) => item.id),
+      );
+      const conditionStepId =
+        step.conditionStepId && validConditionIds.has(step.conditionStepId)
+          ? step.conditionStepId
+          : '';
+
       setEditingStep(step);
       setStepForm({
-        documentTypeId: step.documentTypeId,
+        documentTypeId: step.documentTypeId || step.documentType?.id || '',
         title: step.title,
         instructions: step.instructions || '',
         helpText: step.helpText || '',
         exampleUrl: step.exampleUrl || '',
+        stepKind: step.stepKind ?? 'DOCUMENT',
+        branchKey: step.branchKey || '',
+        conditionStepId,
+        choiceOptions: step.choiceOptions?.join(', ') || '',
         isRequired: step.isRequired,
         maxFiles: step.maxFiles,
         acceptedExtensionsOverride: step.acceptedExtensionsOverride?.join(', ') || '',
@@ -276,6 +341,16 @@ export default function WorkflowEditorPage() {
   }
 
   const sortedSteps = [...(workflow.steps || [])].sort((a, b) => a.position - b.position);
+  const editingStepPosition = editingStep?.position ?? sortedSteps.length;
+  const hasValidDocumentType =
+    Boolean(stepForm.documentTypeId) &&
+    documentTypes.some((documentType) => documentType.id === stepForm.documentTypeId);
+  const conditionCandidateSteps = getConditionCandidateSteps(
+    sortedSteps,
+    editingStepPosition,
+    editingStep?.id,
+  );
+  const conditionHelperText = getConditionHelperText(editingStepPosition);
   const previewStep = sortedSteps[previewStepIndex];
 
   return (
@@ -296,6 +371,14 @@ export default function WorkflowEditorPage() {
               <CopyLinkButton url={getPublicWorkflowUrl(workflow.slug)} />
             </>
           )}
+          <Button
+            variant="outlined"
+            startIcon={<ControlPointDuplicateIcon />}
+            onClick={() => duplicateMutation.mutate()}
+            disabled={duplicateMutation.isPending}
+          >
+            Duplicar
+          </Button>
           <Button component={Link} href="/workflows" variant="outlined">
             Voltar
           </Button>
@@ -346,6 +429,34 @@ export default function WorkflowEditorPage() {
               }
               label="Workflow ativo"
             />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={generalForm.isTemplate}
+                  onChange={(e) =>
+                    setGeneralForm({ ...generalForm, isTemplate: e.target.checked })
+                  }
+                />
+              }
+              label="Usar como template"
+            />
+            <TextField
+              label="Categoria do template"
+              fullWidth
+              margin="normal"
+              value={generalForm.templateCategory}
+              onChange={(e) =>
+                setGeneralForm({ ...generalForm, templateCategory: e.target.value })
+              }
+              helperText="Ex.: inventario, onboarding, rh"
+              disabled={!generalForm.isTemplate}
+            />
+            {workflow.version > 1 && (
+              <Alert severity="info" sx={{ mt: 2 }}>
+                Versão atual do workflow: v{workflow.version}. Submissões antigas usam o snapshot
+                capturado no início do envio.
+              </Alert>
+            )}
             {generalForm.isActive && sortedSteps.length === 0 && (
               <Alert severity="warning" sx={{ mt: 2 }}>
                 Adicione ao menos um step antes de ativar o workflow.
@@ -449,6 +560,22 @@ export default function WorkflowEditorPage() {
         <DialogTitle>{editingStep ? 'Editar Step' : 'Novo Step'}</DialogTitle>
         <DialogContent>
           <FormControl fullWidth margin="normal">
+            <InputLabel>Tipo de etapa</InputLabel>
+            <Select
+              value={stepForm.stepKind}
+              label="Tipo de etapa"
+              onChange={(e) =>
+                setStepForm({
+                  ...stepForm,
+                  stepKind: e.target.value as 'DOCUMENT' | 'CHOICE',
+                })
+              }
+            >
+              <MenuItem value="DOCUMENT">Documento</MenuItem>
+              <MenuItem value="CHOICE">Escolha (pergunta)</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControl fullWidth margin="normal">
             <InputLabel>Tipo de Documento</InputLabel>
             <Select
               value={stepForm.documentTypeId}
@@ -494,6 +621,45 @@ export default function WorkflowEditorPage() {
             onChange={(e) => setStepForm({ ...stepForm, exampleUrl: e.target.value })}
           />
           <TextField
+            label="Ramificação (perfil)"
+            fullWidth
+            margin="normal"
+            value={stepForm.branchKey}
+            onChange={(e) => setStepForm({ ...stepForm, branchKey: e.target.value })}
+            helperText="Ex.: herdeiro, inventariante, advogado. Deixe vazio para todos os perfis."
+          />
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Exibir somente após preencher...</InputLabel>
+            <Select
+              value={stepForm.conditionStepId}
+              label="Exibir somente após preencher..."
+              onChange={(e) =>
+                setStepForm({
+                  ...stepForm,
+                  conditionStepId: e.target.value,
+                })
+              }
+            >
+              <MenuItem value="">Sempre visível</MenuItem>
+              {conditionCandidateSteps.map((step) => (
+                <MenuItem key={step.id} value={step.id}>
+                  {step.position + 1}. {step.title}
+                </MenuItem>
+              ))}
+            </Select>
+            <FormHelperText>{conditionHelperText}</FormHelperText>
+          </FormControl>
+          {stepForm.stepKind === 'CHOICE' && (
+            <TextField
+              label="Opções de escolha"
+              fullWidth
+              margin="normal"
+              value={stepForm.choiceOptions}
+              onChange={(e) => setStepForm({ ...stepForm, choiceOptions: e.target.value })}
+              helperText="Separe por vírgula. Ex.: Sim, Não"
+            />
+          )}
+          <TextField
             label="Máximo de arquivos"
             fullWidth
             margin="normal"
@@ -525,7 +691,12 @@ export default function WorkflowEditorPage() {
           <Button onClick={() => setStepDialogOpen(false)}>Cancelar</Button>
           <Button
             variant="contained"
-            disabled={!stepForm.title || !stepForm.documentTypeId}
+            disabled={
+              !stepForm.title ||
+              !hasValidDocumentType ||
+              (stepForm.stepKind === 'CHOICE' &&
+                stepForm.choiceOptions.split(',').map((option) => option.trim()).filter(Boolean).length < 2)
+            }
             onClick={() => {
               if (editingStep) {
                 updateStepMutation.mutate({ stepId: editingStep.id, data: stepForm });

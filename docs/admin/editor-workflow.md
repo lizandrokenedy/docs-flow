@@ -18,54 +18,64 @@ Configurar um workflow completo: dados gerais, etapas ordenáveis e preview do f
 | Slug | URL pública; alteração bloqueada se já houver submissões |
 | Descrição | Subtítulo no wizard |
 | Ativo | Toggle `isActive` |
+| Usar como template | `isTemplate` — não aparece em `/w/...` nem na lista principal |
+| Categoria do template | `templateCategory` (habilitado só se for template) |
 
 **Regras:**
 
 - Não é possível ativar workflow sem pelo menos uma etapa
-- Aviso exibido se tentar ativar com 0 etapas
+- Aviso se tentar ativar com 0 etapas
+- Alerta quando o workflow tem submissões: edições incrementam `version`; submissões existentes usam snapshot
 
-**Link público:** botões para abrir `/w/{slug}` em nova aba e **copiar link** (toast de confirmação), quando ativo.
+**Ações:** **Duplicar workflow**, abrir `/w/{slug}`, **copiar link** (quando ativo).
 
-Feedback de ações (salvar, steps, reordenar) via **toast** (Snackbar).
+Feedback via **toast** (Snackbar).
 
-### 2. Etapas
+### 2. Steps
 
 Lista ordenável por **arrastar e soltar** (`@dnd-kit`). Cada item mostra:
 
-- Posição, título, tipo de documento
-- Chip Obrigatório / Opcional
+- Posição, título, tipo (documento ou escolha)
+- Ramificação e indicador **Condicional** quando aplicável
+- Obrigatório / Opcional
 - Botões editar e excluir
 
 #### Adicionar / editar etapa
 
 | Campo | Descrição |
 |-------|-----------|
+| Tipo de etapa | `DOCUMENT` ou `CHOICE` (pergunta) |
 | Tipo de documento | Select com tipos cadastrados |
 | Título | Nome exibido no stepper |
-| Instruções | Markdown — orientações ao usuário |
-| Texto de ajuda | Dica em destaque (alerta azul) |
+| Instruções | Markdown |
+| Texto de ajuda | Dica em destaque |
 | URL de exemplo | Link "Ver exemplo" |
-| Máx. arquivos | Quantos arquivos podem ser enviados nesta etapa |
-| Extensões (override) | Opcional; substitui extensões do tipo de documento |
-| Obrigatório | Se desligado, usuário pode avançar sem upload |
+| Ramificação (perfil) | Ex.: `herdeiro`, `pf`, `pj` — vazio = todos |
+| Exibir somente após preencher… | Etapa anterior que deve estar preenchida; primeira etapa = só "Sempre visível" |
+| Opções de escolha | CHOICE: separadas por vírgula (mín. 2) |
+| Máx. arquivos | DOCUMENT |
+| Extensões (override) | Opcional |
+| Obrigatório | Se desligado, usuário pode avançar sem preenchimento |
 
-**Reordenar:** arraste pelo ícone ⋮⋮; posições são salvas via `PATCH /workflows/:id/steps/reorder`.
+**Condicionais:**
+
+- Lista apenas etapas **anteriores** na ordem do fluxo
+- Significa: "só aparece depois que a etapa selecionada tiver arquivo enviado ou pergunta respondida"
+- Ao reordenar, condicionais inválidas são removidas pela API (toast de aviso)
+
+**Limitação atual:** o admin **não** expõe `conditionValue` (ex.: mostrar etapa só se resposta for `"Sim"`). Isso funciona via API/seed — ver template Cadastro de Fornecedor.
+
+**Reordenar:** arraste pelo ícone ⋮⋮; `PATCH /workflows/:id/steps/reorder`.
 
 ### 3. Preview
 
-Simula a experiência do usuário final usando o componente `StepInstructions` para cada etapa, com:
-
-- Título e tipo de documento
-- Instruções renderizadas em Markdown
-- Texto de ajuda
-- Formatos aceitos e tamanho máximo
-
-Não inclui upload real — apenas visualização das instruções.
+Simula `StepInstructions` para cada etapa (sem upload, sem filtro de ramificação/condicional).
 
 ## API utilizada
 
 - `GET /workflows/:id`
 - `PATCH /workflows/:id`
+- `POST /workflows/:id/duplicate`
 - `POST /workflows/:id/steps`
 - `PATCH /workflows/:id/steps/:stepId`
 - `DELETE /workflows/:id/steps/:stepId`

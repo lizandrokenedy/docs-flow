@@ -18,9 +18,11 @@ Inspecionar uma submissão específica: metadados, progresso e arquivos enviados
 - Botões **Abrir fluxo público** e **Copiar link**
 - Datas de início e conclusão
 
+> **Não exibido hoje:** perfil selecionado (`branchKey`) e respostas de etapas CHOICE (disponíveis na API).
+
 ### Arquivos por etapa
 
-Lista agrupada por etapa do workflow:
+Lista agrupada por etapa do workflow (todas as etapas do snapshot/workflow — **não** filtradas por visibilidade):
 
 - Título da etapa
 - Chip Obrigatório / Opcional

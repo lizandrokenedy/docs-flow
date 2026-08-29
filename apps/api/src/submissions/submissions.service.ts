@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { getStepAcceptedExtensions } from '@docs-flow/types';
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
@@ -11,6 +12,17 @@ import {
   VirusScanFailedError,
   VirusScanService,
 } from '../uploads/virus-scan.service';
+import {
+  CreateSubmissionDto,
+  SaveStepAnswerDto,
+  UpdateSubmissionBranchDto,
+} from './dto/submission.dto';
+import {
+  buildWorkflowSnapshot,
+  getSubmissionBranchOptions,
+  getSubmissionVisibleSteps,
+  resolveSubmissionWorkflow,
+} from './submission-workflow.util';
 
 @Injectable()
 export class SubmissionsService {
@@ -19,6 +31,26 @@ export class SubmissionsService {
     private readonly uploadsService: UploadsService,
     private readonly virusScanService: VirusScanService,
   ) {}
+
+  private readonly submissionInclude = {
+    workflow: {
+      include: {
+        steps: {
+          orderBy: { position: 'asc' as const },
+          include: { documentType: true },
+        },
+      },
+    },
+    uploads: true,
+    answers: true,
+  };
+
+  private formatSubmission<T extends Record<string, unknown>>(submission: T) {
+    return {
+      ...submission,
+      workflow: resolveSubmissionWorkflow(submission as never),
+    };
+  }
 
   async findPublicWorkflow(slug: string) {
     const workflow = await this.prisma.workflow.findFirst({
@@ -38,78 +70,135 @@ export class SubmissionsService {
     return workflow;
   }
 
-  async createSubmission(slug: string) {
+  async createSubmission(slug: string, dto: CreateSubmissionDto = {}) {
     const workflow = await this.findPublicWorkflow(slug);
+    const branchOptions = getSubmissionBranchOptions({
+      workflowSnapshot: null,
+      workflow: workflow as never,
+    });
 
-    return this.prisma.submission.create({
+    if (branchOptions.length > 0) {
+      if (!dto.branchKey) {
+        throw new BadRequestException('Selecione o perfil para iniciar este fluxo');
+      }
+      if (!branchOptions.includes(dto.branchKey)) {
+        throw new BadRequestException('Perfil inválido para este workflow');
+      }
+    }
+
+    const snapshot = buildWorkflowSnapshot(workflow as never);
+
+    const submission = await this.prisma.submission.create({
       data: {
         workflowId: workflow.id,
         status: 'IN_PROGRESS',
+        branchKey: dto.branchKey ?? null,
+        workflowSnapshot: snapshot as unknown as Prisma.InputJsonValue,
         currentStepPosition: 0,
       },
-      include: {
-        workflow: {
-          include: {
-            steps: {
-              orderBy: { position: 'asc' },
-              include: { documentType: true },
-            },
-          },
-        },
-        uploads: true,
-      },
+      include: this.submissionInclude,
     });
+
+    return this.formatSubmission(submission);
   }
 
   async findSubmission(id: string) {
     const submission = await this.prisma.submission.findUnique({
       where: { id },
-      include: {
-        workflow: {
-          include: {
-            steps: {
-              orderBy: { position: 'asc' },
-              include: { documentType: true },
-            },
-          },
-        },
-        uploads: true,
-      },
+      include: this.submissionInclude,
     });
 
     if (!submission) throw new NotFoundException('Submissão não encontrada');
-    return submission;
+    return this.formatSubmission(submission);
   }
 
   async findAllSubmissions() {
-    return this.prisma.submission.findMany({
+    const submissions = await this.prisma.submission.findMany({
       include: {
         workflow: { select: { id: true, name: true, slug: true } },
         uploads: true,
       },
       orderBy: { startedAt: 'desc' },
     });
+
+    return submissions;
   }
 
   private async getStepForSubmission(submissionId: string, stepId: string) {
     const submission = await this.findSubmission(submissionId);
-    const step = submission.workflow.steps.find((s) => s.id === stepId);
+    const visibleSteps = getSubmissionVisibleSteps(submission as never);
+    const step = visibleSteps.find((item) => item.id === stepId);
 
     if (!step) {
-      throw new NotFoundException('Step não encontrado nesta submissão');
+      throw new NotFoundException('Step não encontrado ou indisponível nesta submissão');
     }
 
     if (submission.status === 'COMPLETED') {
       throw new BadRequestException('Submissão já finalizada');
     }
 
-    return { submission, step };
+    return { submission, step, visibleSteps };
+  }
+
+  async setBranch(submissionId: string, dto: UpdateSubmissionBranchDto) {
+    const submission = await this.findSubmission(submissionId);
+    if (submission.status === 'COMPLETED') {
+      throw new BadRequestException('Submissão já finalizada');
+    }
+
+    const branchOptions = getSubmissionBranchOptions(submission as never);
+    if (!branchOptions.includes(dto.branchKey)) {
+      throw new BadRequestException('Perfil inválido para este workflow');
+    }
+
+    const updated = await this.prisma.submission.update({
+      where: { id: submissionId },
+      data: { branchKey: dto.branchKey, currentStepPosition: 0 },
+      include: this.submissionInclude,
+    });
+
+    return this.formatSubmission(updated);
+  }
+
+  async saveStepAnswer(submissionId: string, stepId: string, dto: SaveStepAnswerDto) {
+    const { submission, step } = await this.getStepForSubmission(submissionId, stepId);
+
+    if (step.stepKind !== 'CHOICE') {
+      throw new BadRequestException('Esta etapa não aceita resposta de escolha');
+    }
+
+    if (!step.choiceOptions.includes(dto.value)) {
+      throw new BadRequestException('Opção inválida para esta etapa');
+    }
+
+    await this.prisma.submissionAnswer.upsert({
+      where: {
+        submissionId_workflowStepId: {
+          submissionId,
+          workflowStepId: stepId,
+        },
+      },
+      create: {
+        submissionId,
+        workflowStepId: stepId,
+        value: dto.value,
+      },
+      update: {
+        value: dto.value,
+      },
+    });
+
+    return this.findSubmission(submission.id);
   }
 
   async uploadFile(submissionId: string, stepId: string, file: Express.Multer.File) {
     const { submission, step } = await this.getStepForSubmission(submissionId, stepId);
 
-    const currentUploads = submission.uploads.filter((u) => u.workflowStepId === stepId);
+    if (step.stepKind === 'CHOICE') {
+      throw new BadRequestException('Esta etapa é de escolha e não aceita upload de arquivo');
+    }
+
+    const currentUploads = submission.uploads.filter((upload) => upload.workflowStepId === stepId);
     const extensions = getStepAcceptedExtensions({
       acceptedExtensionsOverride: step.acceptedExtensionsOverride,
       documentType: step.documentType,
@@ -158,7 +247,7 @@ export class SubmissionsService {
     const { submission } = await this.getStepForSubmission(submissionId, stepId);
 
     const upload = submission.uploads.find(
-      (u) => u.id === uploadId && u.workflowStepId === stepId,
+      (item) => item.id === uploadId && item.workflowStepId === stepId,
     );
 
     if (!upload) throw new NotFoundException('Upload não encontrado');
@@ -174,10 +263,20 @@ export class SubmissionsService {
       throw new BadRequestException('Submissão já finalizada');
     }
 
-    const requiredSteps = submission.workflow.steps.filter((s) => s.isRequired);
+    const visibleSteps = getSubmissionVisibleSteps(submission as never);
 
-    for (const step of requiredSteps) {
-      const uploads = submission.uploads.filter((u) => u.workflowStepId === step.id);
+    for (const step of visibleSteps.filter((item) => item.isRequired)) {
+      if (step.stepKind === 'CHOICE') {
+        const answer = submission.answers?.find((item) => item.workflowStepId === step.id);
+        if (!answer?.value) {
+          throw new BadRequestException(
+            `A etapa "${step.title}" é obrigatória e ainda não foi respondida`,
+          );
+        }
+        continue;
+      }
+
+      const uploads = submission.uploads.filter((upload) => upload.workflowStepId === step.id);
       if (uploads.length === 0) {
         throw new BadRequestException(
           `O step "${step.title}" é obrigatório e ainda não possui documentos`,
@@ -190,17 +289,20 @@ export class SubmissionsService {
       data: {
         status: 'COMPLETED',
         completedAt: new Date(),
-        currentStepPosition: submission.workflow.steps.length,
+        currentStepPosition: visibleSteps.length,
       },
-      include: {
-        workflow: true,
-        uploads: true,
-      },
-    });
+      include: this.submissionInclude,
+    }).then((result) => this.formatSubmission(result));
   }
 
   async updateCurrentStep(submissionId: string, position: number) {
     const submission = await this.findSubmission(submissionId);
+    const visibleSteps = getSubmissionVisibleSteps(submission as never);
+
+    if (position < 0 || position > visibleSteps.length) {
+      throw new BadRequestException('Posição de etapa inválida');
+    }
+
     return this.prisma.submission.update({
       where: { id: submissionId },
       data: { currentStepPosition: position },

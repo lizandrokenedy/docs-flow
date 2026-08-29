@@ -36,9 +36,15 @@ Script idempotente executado automaticamente ao subir o container da API no Dock
 | Status | Ativo |
 | Etapas | 3 (todas obrigatórias, 1 arquivo cada) |
 
-1. Documento de Identidade (RG)
-2. CPF
-3. Comprovante de Residência
+| # | Etapa | Condição |
+|---|-------|----------|
+| 1 | Documento de Identidade (RG) | Sempre visível |
+| 2 | CPF | Após upload do RG |
+| 3 | Comprovante de Residência | Após upload do CPF |
+
+No wizard, só a etapa 1 aparece inicialmente. Cada etapa seguinte entra no fluxo depois que a anterior foi preenchida.
+
+> **Bancos já existentes:** o seed só cria etapas quando o workflow tem 0 steps. Para aplicar a cadeia condicional em instalações antigas, configure no admin ou recrie o banco com `--volumes`.
 
 ## Workflow 2: Inventário Judicial
 
@@ -73,7 +79,34 @@ Fluxo completo para inventário judicial com disputa entre herdeiros:
 | 18 | Comprovantes de Dívidas | Não | 10 |
 | 19 | Procuração ao Advogado | Sim | 1 |
 
-Cada etapa inclui instruções em Markdown contextualizadas para o processo de inventário no Brasil.
+Cada etapa inclui instruções em Markdown contextualizadas para o processo de inventário no Brasil. Sem condicionais no seed — todas visíveis desde o início (stepper compacto com 19 etapas).
+
+## Template: Cadastro de Fornecedor
+
+| Campo | Valor |
+|-------|-------|
+| Slug | `template-cadastro-fornecedor` |
+| Status | **Template** (inativo — não aparece em `/w/...` até duplicar) |
+| Categoria | `fornecedores` |
+| Etapas | 7 |
+
+Template genérico de **homologação de fornecedores**. Demonstra:
+
+- **Ramificação** por perfil (`branchKey`: `pf` / `pj`) — o usuário escolhe no início do wizard
+- **Etapa de escolha** (`CHOICE`) — pergunta sobre registro regulatório
+- **Etapa condicional** — certificado de conformidade só aparece se a resposta for `"Sim"` (`conditionValue` no seed)
+
+| # | Etapa | Perfil / condição |
+|---|-------|-------------------|
+| 1 | Pergunta sobre registro regulatório | Todos (CHOICE: Sim/Não) |
+| 2 | RG | `branchKey: pf` |
+| 3 | CPF | `branchKey: pf` |
+| 4 | Contrato social | `branchKey: pj` |
+| 5 | Certidões negativas | `branchKey: pj` |
+| 6 | Dados bancários | Todos |
+| 7 | Certificado de conformidade | `conditionStepId` → etapa 1, `conditionValue: "Sim"` |
+
+**Como usar:** Admin → Workflows → **Usar template** → selecione *Cadastro de Fornecedor* → edite e ative.
 
 ## Executar manualmente
 
@@ -84,7 +117,7 @@ docker exec docs-flow-api-1 sh -c "cd /app && npm run seed --workspace=@docs-flo
 ## Comportamento idempotente
 
 - Tipos de documento: `upsert` por ID fixo
-- Workflows: `upsert` por slug
+- Workflows: `upsert` por slug (metadados atualizados; etapas não)
 - Etapas: criadas apenas se o workflow ainda não tiver etapas (`count === 0`)
 
-Isso evita duplicar etapas em reinicializações, mas também significa que alterações manuais no seed não atualizam etapas já existentes — é necessário recriar o banco ou editar via admin.
+Isso evita duplicar etapas em reinicializações, mas também significa que alterações manuais no seed **não atualizam** etapas já existentes — é necessário recriar o banco (`./scripts/build.sh down dev --volumes`) ou editar via admin.
