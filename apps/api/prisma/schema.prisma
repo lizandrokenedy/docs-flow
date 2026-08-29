@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model DocumentType {
+  id               String         @id @default(uuid())
+  name             String
+  description      String?
+  allowedExtensions String[]
+  allowedMimeTypes  String[]
+  maxSizeBytes     Int            @default(10485760)
+  icon             String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  workflowSteps    WorkflowStep[]
+
+  @@map("document_types")
+}
+
+model Workflow {
+  id          String         @id @default(uuid())
+  name        String
+  slug        String         @unique
+  description String?
+  isActive    Boolean        @default(false)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  steps       WorkflowStep[]
+  submissions Submission[]
+
+  @@map("workflows")
+}
+
+model WorkflowStep {
+  id                         String       @id @default(uuid())
+  workflowId                 String
+  documentTypeId             String
+  title                      String
+  instructions               String?
+  helpText                   String?
+  exampleUrl                 String?
+  position                   Int
+  isRequired                 Boolean      @default(true)
+  maxFiles                   Int          @default(1)
+  acceptedExtensionsOverride String[]
+  createdAt                  DateTime     @default(now())
+  updatedAt                  DateTime     @updatedAt
+  workflow                   Workflow     @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  documentType               DocumentType @relation(fields: [documentTypeId], references: [id], onDelete: Restrict)
+  uploads                    StepUpload[]
+
+  @@unique([workflowId, position])
+  @@map("workflow_steps")
+}
+
+enum SubmissionStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPLETED
+}
+
+model Submission {
+  id                  String           @id @default(uuid())
+  workflowId          String
+  status              SubmissionStatus @default(IN_PROGRESS)
+  currentStepPosition Int              @default(0)
+  startedAt           DateTime         @default(now())
+  completedAt         DateTime?
+  workflow            Workflow         @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  uploads             StepUpload[]
+
+  @@map("submissions")
+}
+
+model StepUpload {
+  id             String       @id @default(uuid())
+  submissionId   String
+  workflowStepId String
+  originalName   String
+  storedName     String
+  mimeType       String
+  sizeBytes      Int
+  createdAt      DateTime     @default(now())
+  submission     Submission   @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  workflowStep   WorkflowStep @relation(fields: [workflowStepId], references: [id], onDelete: Cascade)
+
+  @@map("step_uploads")
+}

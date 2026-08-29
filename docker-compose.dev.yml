@@ -1,0 +1,86 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: docsflow
+      POSTGRES_PASSWORD: docsflow
+      POSTGRES_DB: docsflow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - '${POSTGRES_PORT:-5433}:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U docsflow']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: dev
+    ports:
+      - '4000:4000'
+    environment:
+      DATABASE_URL: postgresql://docsflow:docsflow@postgres:5432/docsflow?schema=public
+      UPLOAD_DIR: /app/uploads
+      WEB_URL: http://localhost:3000
+      ADMIN_URL: http://localhost:3001
+      PORT: 4000
+    volumes:
+      - ./apps/api:/app/apps/api
+      - ./packages:/app/packages
+      - uploads_data:/app/uploads
+      - /app/node_modules
+      - /app/apps/api/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    working_dir: /app
+    command: >
+      sh -c "npm run generate --workspace=@docs-flow/api &&
+             npm run migrate --workspace=@docs-flow/api &&
+             npm run seed --workspace=@docs-flow/api &&
+             npm run dev --workspace=@docs-flow/api"
+
+  admin:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+      target: dev
+    ports:
+      - '3001:3001'
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+      NEXT_PUBLIC_WEB_URL: http://localhost:3000
+    volumes:
+      - ./apps/admin:/app/apps/admin
+      - ./packages:/app/packages
+      - /app/node_modules
+      - /app/apps/admin/node_modules
+    depends_on:
+      - api
+    command: npm run dev --workspace=@docs-flow/admin
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: dev
+    ports:
+      - '3000:3000'
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+    volumes:
+      - ./apps/web:/app/apps/web
+      - ./packages:/app/packages
+      - /app/node_modules
+      - /app/apps/web/node_modules
+    depends_on:
+      - api
+    command: npm run dev --workspace=@docs-flow/web
+
+volumes:
+  postgres_data:
+  uploads_data:

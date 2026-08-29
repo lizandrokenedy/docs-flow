@@ -1,0 +1,28 @@
+{
+  "name": "docs-flow",
+  "private": true,
+  "packageManager": "npm@11.13.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo dev",
+    "docker:dev": "bash scripts/build.sh dev",
+    "docker:prod": "bash scripts/build.sh prod",
+    "docker:down": "bash scripts/build.sh down",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "db:migrate": "npm run migrate --workspace=@docs-flow/api",
+    "db:seed": "npm run seed --workspace=@docs-flow/api",
+    "db:generate": "npm run generate --workspace=@docs-flow/api"
+  },
+  "devDependencies": {
+    "prettier": "^3.5.3",
+    "turbo": "^2.5.4",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
