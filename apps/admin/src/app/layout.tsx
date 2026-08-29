@@ -4,7 +4,7 @@ import { Providers } from '@/components/Providers';
 import { ThemeRegistry } from '@/components/ThemeRegistry';
 
 export const metadata: Metadata = {
-  title: 'Docs Flow — Admin',
+  title: 'Docs Flow | Admin',
   description: 'Painel administrativo de workflows de documentos',
 };
 

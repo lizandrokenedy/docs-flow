@@ -22,15 +22,17 @@ Listar, criar, duplicar e excluir workflows de coleta de documentos.
 | Submissões | Quantidade de envios recebidos |
 | Ações | Editar / Duplicar / Abrir público / Copiar link / Excluir |
 
-> Templates (`isTemplate: true`) **não** aparecem nesta lista — apenas em **Usar template**.
+> Templates (`isTemplate: true`) **não** aparecem nesta lista — apenas na [biblioteca de templates](./biblioteca-templates.md).
 
 ### Criar workflow
 
 Diálogo com nome e descrição. Slug gerado via `slugify`. Workflow criado **inativo** e sem etapas → redireciona ao editor.
 
-### Usar template
+### Biblioteca de templates
 
-Diálogo lista `GET /workflows/templates`. Ao selecionar, chama `POST /workflows/from-template/:id` e redireciona ao editor do novo workflow (inativo, não-template).
+Botão **Biblioteca de templates** → `/workflows/templates`. Página dedicada com filtro por categoria, preview das etapas e criação via `POST /workflows/from-template/:id`.
+
+Também acessível pelo item **Templates** no menu lateral.
 
 ### Duplicar
 
@@ -44,11 +46,11 @@ Diálogo lista `GET /workflows/templates`. Ao selecionar, chama `POST /workflows
 
 ## Ciclo de vida recomendado
 
-1. Criar workflow ou usar template (inativo)
+1. Criar workflow ou usar template da biblioteca (inativo)
 2. Adicionar etapas no editor (condicionais, ramificações)
-3. Testar no preview
-4. Ativar quando pronto
-5. Compartilhar link `/w/{slug}`
+3. Ativar quando pronto
+4. Compartilhar link `/w/{slug}`
+5. Acompanhar submissões e consultar histórico de alterações se necessário
 
 ## API utilizada
 
@@ -59,4 +61,4 @@ Diálogo lista `GET /workflows/templates`. Ao selecionar, chama `POST /workflows
 - `POST /workflows/:id/duplicate`
 - `DELETE /workflows/:id`
 
-Veja também: [editor-workflow.md](./editor-workflow.md), [api/workflows.md](../api/workflows.md)
+Veja também: [editor-workflow.md](./editor-workflow.md), [biblioteca-templates.md](./biblioteca-templates.md), [api/workflows.md](../api/workflows.md)

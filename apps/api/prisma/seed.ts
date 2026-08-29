@@ -115,7 +115,7 @@ async function seedTemplateCadastroFornecedor(documentTypes: Record<string, { id
     update: {
       name: 'Cadastro de Fornecedor',
       description:
-        'Template genérico para homologação de fornecedores. Suporta ramificação PF/PJ e etapa condicional de exemplo.',
+        'Template genérico para homologação de fornecedores. Usa perguntas condicionais para PF/PJ e conformidade regulatória.',
       isTemplate: true,
       isActive: false,
       templateCategory: 'fornecedores',
@@ -124,7 +124,7 @@ async function seedTemplateCadastroFornecedor(documentTypes: Record<string, { id
       name: 'Cadastro de Fornecedor',
       slug: 'template-cadastro-fornecedor',
       description:
-        'Template genérico para homologação de fornecedores. Suporta ramificação PF/PJ e etapa condicional de exemplo.',
+        'Template genérico para homologação de fornecedores. Usa perguntas condicionais para PF/PJ e conformidade regulatória.',
       isActive: false,
       isTemplate: true,
       templateCategory: 'fornecedores',
@@ -142,13 +142,40 @@ async function seedTemplateCadastroFornecedor(documentTypes: Record<string, { id
   const perguntaRegistro = await prisma.workflowStep.create({
     data: {
       workflowId: workflow.id,
-      documentTypeId: documentTypes.rg.id,
       title: 'Fornece produtos que exigem registro em órgão regulador?',
       instructions:
         'Esta pergunta ajuda a definir se documentos adicionais de conformidade serão solicitados.\n\nEx.: alimentos, cosméticos, equipamentos médicos.',
       position: 0,
-      stepKind: 'CHOICE',
+      stepKind: 'QUESTION',
+      questionType: 'YES_NO',
+      questionConfig: {
+        options: [
+          { id: 'yes', label: 'Sim' },
+          { id: 'no', label: 'Não' },
+        ],
+      },
       choiceOptions: ['Sim', 'Não'],
+      isRequired: true,
+      maxFiles: 1,
+      acceptedExtensionsOverride: [],
+    },
+  });
+
+  const perguntaTipo = await prisma.workflowStep.create({
+    data: {
+      workflowId: workflow.id,
+      title: 'Tipo de cadastro do fornecedor',
+      instructions: 'Selecione se o fornecedor é pessoa física ou jurídica.',
+      position: 1,
+      stepKind: 'QUESTION',
+      questionType: 'SINGLE_CHOICE',
+      questionConfig: {
+        options: [
+          { id: 'pf', label: 'Pessoa Física' },
+          { id: 'pj', label: 'Pessoa Jurídica' },
+        ],
+      },
+      choiceOptions: ['Pessoa Física', 'Pessoa Jurídica'],
       isRequired: true,
       maxFiles: 1,
       acceptedExtensionsOverride: [],
@@ -163,8 +190,9 @@ async function seedTemplateCadastroFornecedor(documentTypes: Record<string, { id
         title: 'Documento de Identidade (PF)',
         instructions: 'Envie RG ou CNH legível do responsável pelo fornecedor **pessoa física**.',
         helpText: 'Aplicável ao perfil Pessoa Física.',
-        position: 1,
-        branchKey: 'pf',
+        position: 2,
+        conditionStepId: perguntaTipo.id,
+        conditionValue: 'Pessoa Física',
         isRequired: true,
         maxFiles: 1,
         acceptedExtensionsOverride: [],
@@ -174,8 +202,9 @@ async function seedTemplateCadastroFornecedor(documentTypes: Record<string, { id
         documentTypeId: documentTypes.cpf.id,
         title: 'CPF (PF)',
         instructions: 'Envie o CPF do fornecedor pessoa física.',
-        position: 2,
-        branchKey: 'pf',
+        position: 3,
+        conditionStepId: perguntaTipo.id,
+        conditionValue: 'Pessoa Física',
         isRequired: true,
         maxFiles: 1,
         acceptedExtensionsOverride: [],
@@ -187,8 +216,9 @@ async function seedTemplateCadastroFornecedor(documentTypes: Record<string, { id
         instructions:
           'Envie o contrato social consolidado, alterações e última versão registrada na Junta Comercial.',
         helpText: 'Aplicável ao perfil Pessoa Jurídica.',
-        position: 3,
-        branchKey: 'pj',
+        position: 4,
+        conditionStepId: perguntaTipo.id,
+        conditionValue: 'Pessoa Jurídica',
         isRequired: true,
         maxFiles: 3,
         acceptedExtensionsOverride: [],
@@ -199,8 +229,9 @@ async function seedTemplateCadastroFornecedor(documentTypes: Record<string, { id
         title: 'Certidões Negativas (PJ)',
         instructions:
           'Certidões negativas de débitos federais, estaduais e trabalhistas da empresa, quando aplicável.',
-        position: 4,
-        branchKey: 'pj',
+        position: 5,
+        conditionStepId: perguntaTipo.id,
+        conditionValue: 'Pessoa Jurídica',
         isRequired: true,
         maxFiles: 5,
         acceptedExtensionsOverride: [],
@@ -211,7 +242,7 @@ async function seedTemplateCadastroFornecedor(documentTypes: Record<string, { id
         title: 'Dados bancários para pagamento',
         instructions:
           'Envie comprovante bancário com agência, conta e titular para cadastro financeiro.',
-        position: 5,
+        position: 6,
         isRequired: true,
         maxFiles: 1,
         acceptedExtensionsOverride: [],
@@ -222,7 +253,7 @@ async function seedTemplateCadastroFornecedor(documentTypes: Record<string, { id
         title: 'Certificado de conformidade regulatória',
         instructions:
           'Envie certificados, alvarás ou registros exigidos pelo órgão regulador do seu segmento.',
-        position: 6,
+        position: 7,
         conditionStepId: perguntaRegistro.id,
         conditionValue: 'Sim',
         isRequired: true,
@@ -239,7 +270,7 @@ async function seedInventarioJudicial(documentTypes: Record<string, { id: string
   const workflow = await prisma.workflow.upsert({
     where: { slug: 'inventario-judicial' },
     update: {
-      name: 'Inventário Judicial — Documentos da Herança',
+      name: 'Inventário Judicial: Documentos da Herança',
       description:
         'Coleta de documentos para abertura e instrução de inventário judicial, quando há disputa entre herdeiros, testamento ou herdeiros incapazes.',
       isActive: true,
@@ -247,7 +278,7 @@ async function seedInventarioJudicial(documentTypes: Record<string, { id: string
       templateCategory: 'inventario',
     },
     create: {
-      name: 'Inventário Judicial — Documentos da Herança',
+      name: 'Inventário Judicial: Documentos da Herança',
       slug: 'inventario-judicial',
       description:
         'Coleta de documentos para abertura e instrução de inventário judicial, quando há disputa entre herdeiros, testamento ou herdeiros incapazes.',
@@ -321,7 +352,7 @@ async function seedInventarioJudicial(documentTypes: Record<string, { id: string
         title: 'Pacto Antenupcial',
         instructions:
           'Se o falecido era casado sob regime de **separação total ou participação final nos aquestos**, envie a escritura do pacto antenupcial.\n\nSe não houver pacto, pule esta etapa.',
-        helpText: 'Etapa opcional — aplicável apenas quando existir pacto registrado em cartório.',
+        helpText: 'Etapa opcional. Aplicável apenas quando existir pacto registrado em cartório.',
         position: 4,
         isRequired: false,
         maxFiles: 1,
@@ -344,7 +375,7 @@ async function seedInventarioJudicial(documentTypes: Record<string, { id: string
         documentTypeId: documentTypes.testamento.id,
         title: 'Testamento ou Certidão de Inexistência',
         instructions:
-          'Envie o **testamento** registrado, se existir, ou a **certidão de inexistência de testamento** (busca no Colégio Notarial — CENSEC).\n\nA existência de testamento define a via do inventário e a ordem de vocação hereditária.',
+          'Envie o **testamento** registrado, se existir, ou a **certidão de inexistência de testamento** (busca no Colégio Notarial, CENSEC).\n\nA existência de testamento define a via do inventário e a ordem de vocação hereditária.',
         helpText: 'A certidão CENSEC pode ser solicitada por advogado ou tabelião habilitado.',
         position: 6,
         isRequired: true,
@@ -416,7 +447,7 @@ async function seedInventarioJudicial(documentTypes: Record<string, { id: string
         title: 'Laudo ou Sentença de Interdição',
         instructions:
           'Se algum herdeiro for **menor incapaz** ou **interditado**, envie a certidão de nascimento do menor, laudo médico ou **sentença de interdição**.\n\nNesses casos o inventário é judicial e o Ministério Público acompanha o processo.',
-        helpText: 'Etapa opcional — obrigatória apenas quando houver herdeiro menor ou incapaz.',
+        helpText: 'Etapa opcional. Obrigatória apenas quando houver herdeiro menor ou incapaz.',
         position: 12,
         isRequired: false,
         maxFiles: 3,
@@ -464,7 +495,7 @@ async function seedInventarioJudicial(documentTypes: Record<string, { id: string
         title: 'Documentos Societários',
         instructions:
           'Se o falecido tinha participação em empresas, envie **contrato social**, **alterações contratuais** e **certidão simplificada da Junta Comercial** (ou equivalente).',
-        helpText: 'Etapa opcional — aplicável quando houver quotas ou ações no espólio.',
+        helpText: 'Etapa opcional. Aplicável quando houver quotas ou ações no espólio.',
         position: 16,
         isRequired: false,
         maxFiles: 8,

@@ -21,7 +21,7 @@ show_help() {
 Uso: $0 {dev|prod|down} [opções]
 
 Comandos:
-  dev              Ambiente de desenvolvimento (docker-compose.dev.yml) — hot reload
+  dev              Ambiente de desenvolvimento (docker-compose.dev.yml), com hot reload
   prod             Ambiente local de produção (docker-compose.yml)
   down [dev|prod|all]   Derruba containers (padrão: all)
 
@@ -40,10 +40,10 @@ Exemplos:
   $0 down dev --volumes
 
 URLs (dev / prod):
-  Web (público)  → http://localhost:${WEB_PORT}/w/abertura-conta
-  Admin          → http://localhost:${ADMIN_PORT}
-  API            → http://localhost:${API_PORT}
-  Swagger        → http://localhost:${API_PORT}/api/docs
+  Web (público)  http://localhost:${WEB_PORT}/w/abertura-conta
+  Admin          http://localhost:${ADMIN_PORT}
+  API            http://localhost:${API_PORT}
+  Swagger        http://localhost:${API_PORT}/api/docs
 EOF
 }
 
@@ -130,7 +130,16 @@ run_up() {
   # shellcheck disable=SC2086
   docker compose -f "$compose_file" build $NO_CACHE
 
-  echo "Subindo ambiente ${ENV_TARGET}..."
+  echo "Subindo banco e antivírus..."
+  docker compose -f "$compose_file" up -d postgres clamav
+
+  echo "Aplicando migrations..."
+  docker compose -f "$compose_file" run --rm migrate
+
+  echo "Executando seed..."
+  docker compose -f "$compose_file" run --rm seed
+
+  echo "Subindo aplicação..."
   docker compose -f "$compose_file" up -d
 
   local postgres_port

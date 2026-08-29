@@ -5,7 +5,15 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { getStepAcceptedExtensions } from '@docs-flow/types';
+import {
+  getStepAcceptedExtensions,
+  hasQuestionAnswer,
+  isQuestionStep,
+  normalizeQuestionAnswerValue,
+  QuestionAnswerValidationError,
+  validateQuestionAnswer,
+  type QuestionType,
+} from '@docs-flow/types';
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
 import {
@@ -15,11 +23,9 @@ import {
 import {
   CreateSubmissionDto,
   SaveStepAnswerDto,
-  UpdateSubmissionBranchDto,
 } from './dto/submission.dto';
 import {
   buildWorkflowSnapshot,
-  getSubmissionBranchOptions,
   getSubmissionVisibleSteps,
   resolveSubmissionWorkflow,
 } from './submission-workflow.util';
@@ -70,29 +76,14 @@ export class SubmissionsService {
     return workflow;
   }
 
-  async createSubmission(slug: string, dto: CreateSubmissionDto = {}) {
+  async createSubmission(slug: string, _dto: CreateSubmissionDto = {}) {
     const workflow = await this.findPublicWorkflow(slug);
-    const branchOptions = getSubmissionBranchOptions({
-      workflowSnapshot: null,
-      workflow: workflow as never,
-    });
-
-    if (branchOptions.length > 0) {
-      if (!dto.branchKey) {
-        throw new BadRequestException('Selecione o perfil para iniciar este fluxo');
-      }
-      if (!branchOptions.includes(dto.branchKey)) {
-        throw new BadRequestException('Perfil inválido para este workflow');
-      }
-    }
-
     const snapshot = buildWorkflowSnapshot(workflow as never);
 
     const submission = await this.prisma.submission.create({
       data: {
         workflowId: workflow.id,
         status: 'IN_PROGRESS',
-        branchKey: dto.branchKey ?? null,
         workflowSnapshot: snapshot as unknown as Prisma.InputJsonValue,
         currentStepPosition: 0,
       },
@@ -140,36 +131,41 @@ export class SubmissionsService {
     return { submission, step, visibleSteps };
   }
 
-  async setBranch(submissionId: string, dto: UpdateSubmissionBranchDto) {
-    const submission = await this.findSubmission(submissionId);
-    if (submission.status === 'COMPLETED') {
-      throw new BadRequestException('Submissão já finalizada');
-    }
-
-    const branchOptions = getSubmissionBranchOptions(submission as never);
-    if (!branchOptions.includes(dto.branchKey)) {
-      throw new BadRequestException('Perfil inválido para este workflow');
-    }
-
-    const updated = await this.prisma.submission.update({
-      where: { id: submissionId },
-      data: { branchKey: dto.branchKey, currentStepPosition: 0 },
-      include: this.submissionInclude,
-    });
-
-    return this.formatSubmission(updated);
-  }
-
   async saveStepAnswer(submissionId: string, stepId: string, dto: SaveStepAnswerDto) {
     const { submission, step } = await this.getStepForSubmission(submissionId, stepId);
 
-    if (step.stepKind !== 'CHOICE') {
-      throw new BadRequestException('Esta etapa não aceita resposta de escolha');
+    if (!isQuestionStep(step.stepKind)) {
+      throw new BadRequestException('Esta etapa não aceita resposta de pergunta');
     }
 
-    if (!step.choiceOptions.includes(dto.value)) {
-      throw new BadRequestException('Opção inválida para esta etapa');
+    const questionType = (step.questionType ?? 'SINGLE_CHOICE') as QuestionType;
+    const trimmedValue = dto.value.trim();
+
+    if (!hasQuestionAnswer(trimmedValue)) {
+      if (step.isRequired) {
+        throw new BadRequestException('Resposta obrigatória');
+      }
+
+      await this.prisma.submissionAnswer.deleteMany({
+        where: { submissionId, workflowStepId: stepId },
+      });
+      await this.cleanupHiddenBranchData(submissionId);
+      return this.findSubmission(submission.id);
     }
+
+    try {
+      validateQuestionAnswer(questionType, trimmedValue, {
+        choiceOptions: step.choiceOptions,
+        questionConfig: step.questionConfig as never,
+      });
+    } catch (error) {
+      if (error instanceof QuestionAnswerValidationError) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
+
+    const value = normalizeQuestionAnswerValue(questionType, trimmedValue);
 
     await this.prisma.submissionAnswer.upsert({
       where: {
@@ -181,21 +177,56 @@ export class SubmissionsService {
       create: {
         submissionId,
         workflowStepId: stepId,
-        value: dto.value,
+        value,
       },
       update: {
-        value: dto.value,
+        value,
       },
     });
 
+    await this.cleanupHiddenBranchData(submissionId);
     return this.findSubmission(submission.id);
+  }
+
+  private async cleanupHiddenBranchData(submissionId: string) {
+    const submission = await this.prisma.submission.findUnique({
+      where: { id: submissionId },
+      include: this.submissionInclude,
+    });
+
+    if (!submission) {
+      return;
+    }
+
+    const formatted = this.formatSubmission(submission);
+    const visibleStepIds = new Set(
+      getSubmissionVisibleSteps(formatted as never).map((item) => item.id),
+    );
+
+    const hiddenAnswers =
+      submission.answers?.filter((answer) => !visibleStepIds.has(answer.workflowStepId)) ?? [];
+    if (hiddenAnswers.length > 0) {
+      await this.prisma.submissionAnswer.deleteMany({
+        where: { id: { in: hiddenAnswers.map((answer) => answer.id) } },
+      });
+    }
+
+    const hiddenUploads =
+      submission.uploads?.filter((upload) => !visibleStepIds.has(upload.workflowStepId)) ?? [];
+    for (const upload of hiddenUploads) {
+      await this.uploadsService.removeUpload(upload.id);
+    }
   }
 
   async uploadFile(submissionId: string, stepId: string, file: Express.Multer.File) {
     const { submission, step } = await this.getStepForSubmission(submissionId, stepId);
 
-    if (step.stepKind === 'CHOICE') {
-      throw new BadRequestException('Esta etapa é de escolha e não aceita upload de arquivo');
+    if (isQuestionStep(step.stepKind)) {
+      throw new BadRequestException('Esta etapa é de pergunta e não aceita upload de arquivo');
+    }
+
+    if (!step.documentType) {
+      throw new BadRequestException('Etapa de documento sem tipo de documento configurado');
     }
 
     const currentUploads = submission.uploads.filter((upload) => upload.workflowStepId === stepId);
@@ -266,12 +297,26 @@ export class SubmissionsService {
     const visibleSteps = getSubmissionVisibleSteps(submission as never);
 
     for (const step of visibleSteps.filter((item) => item.isRequired)) {
-      if (step.stepKind === 'CHOICE') {
+      if (isQuestionStep(step.stepKind)) {
         const answer = submission.answers?.find((item) => item.workflowStepId === step.id);
-        if (!answer?.value) {
+        if (!hasQuestionAnswer(answer?.value)) {
           throw new BadRequestException(
             `A etapa "${step.title}" é obrigatória e ainda não foi respondida`,
           );
+        }
+
+        try {
+          validateQuestionAnswer((step.questionType ?? 'SINGLE_CHOICE') as QuestionType, answer!.value, {
+            choiceOptions: step.choiceOptions,
+            questionConfig: step.questionConfig as never,
+          });
+        } catch (error) {
+          if (error instanceof QuestionAnswerValidationError) {
+            throw new BadRequestException(
+              `A etapa "${step.title}": ${error.message}`,
+            );
+          }
+          throw error;
         }
         continue;
       }
@@ -307,5 +352,19 @@ export class SubmissionsService {
       where: { id: submissionId },
       data: { currentStepPosition: position },
     });
+  }
+
+  async deleteSubmission(id: string) {
+    const submission = await this.prisma.submission.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+
+    if (!submission) {
+      throw new NotFoundException('Submissão não encontrada');
+    }
+
+    await this.prisma.submission.delete({ where: { id } });
+    await this.uploadsService.removeSubmissionStorage(id);
   }
 }

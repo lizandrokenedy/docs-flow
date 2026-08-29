@@ -17,7 +17,9 @@ O sistema cobre o ciclo básico ponta a ponta:
 9. Stepper compacto para workflows longos (≥ 6 etapas)
 10. Retomada de sessão no wizard (`localStorage` + `currentStepPosition`)
 11. Feedback visual no admin (snackbar/toast em mutações, cópia de links e erros de carregamento)
-12. Workflows inteligentes: duplicar, templates, etapas condicionais, ramificações e versionamento por snapshot
+12. Workflows inteligentes: duplicar, biblioteca de templates, etapas condicionais, **tipos de pergunta** (escolha, texto, número, data), histórico com diff e versionamento por snapshot
+13. Exclusão de submissões e arquivos no admin
+14. Stepper com mensagens de bloqueio e preview de respostas antes de salvar
 
 Para detalhes do que existe hoje, veja [visao-geral.md](./visao-geral.md).
 
@@ -63,7 +65,7 @@ Itens que impedem uso seguro em ambiente real.
 
 ### 1.3 Identificação de quem enviou
 
-**Situação atual:** o modelo `Submission` armazena `workflowId`, status, posição, `branchKey` (perfil), snapshot, uploads e respostas CHOICE — mas **não** identifica a pessoa (nome, e-mail, CPF).
+**Situação atual:** o modelo `Submission` armazena `workflowId`, status, posição, snapshot, uploads e respostas QUESTION — mas **não** identifica a pessoa (nome, e-mail, CPF).
 
 **O que falta:**
 
@@ -129,6 +131,7 @@ Melhorias que aumentam muito o valor para escritórios, RH e operações.
 | Filtros | Por workflow, status, período |
 | Busca | Por ID, nome do remetente (quando existir) |
 | Download em ZIP | Baixar todos os arquivos de uma submissão de uma vez |
+| ~~Excluir submissão~~ | Implementado (lista e detalhe) |
 | Status operacionais | Além de `IN_PROGRESS` / `COMPLETED`: ex. `EM_ANALISE`, `PENDENTE`, `APROVADO` |
 | Exportação | CSV/Excel de submissões para relatório |
 
@@ -191,20 +194,24 @@ Funcionalidades que diferenciam o produto em cenários complexos.
 
 **Implementado (MVP):**
 
-- **Duplicar workflow** — `POST /workflows/:id/duplicate` + botão no admin
+- **Duplicar workflow** — `POST /workflows/:id/duplicate` + botão no admin (copia `questionType` e `questionConfig`)
 - **Templates** — `isTemplate`, `GET /workflows/templates`, `POST /workflows/from-template/:id`
-- **Etapas condicionais** — `conditionStepId` aponta para etapa anterior preenchida (upload ou resposta CHOICE); `conditionValue` opcional para filtrar resposta específica (API/seed; admin não expõe na UI)
-- **Ramificações** — `branchKey` no step e na submissão, `BranchPicker` no wizard
-- **Etapas CHOICE** — perguntas com opções, sem upload
-- **Versionamento** — snapshot JSON ao criar submissão; `version` incrementa ao editar workflow com submissões
+- **Etapas condicionais** — `conditionStepId` aponta para etapa anterior preenchida (upload ou resposta QUESTION); `conditionValue` opcional para filtrar resposta específica (API/seed; admin não expõe na UI)
+- **Etapas QUESTION** — tipos `SINGLE_CHOICE`, `SELECT`, `YES_NO`, `TEXT`, `TEXTAREA`, `NUMBER`, `DATE`
+- **Versionamento** — snapshot JSON ao criar submissão; `version` incrementa só em alterações de fluxo quando há submissões
 - **Sanitize ao reordenar** — condicionais inválidas removidas automaticamente (`clearedConditions` na resposta)
+- **Biblioteca de templates** — página `/workflows/templates` com filtro por categoria, preview de etapas e criação a partir do template
+- **Histórico de versões** — aba **Histórico** com diff legível; só alterações de fluxo geram nova versão
+- **Limpeza ao mudar ramo** — respostas e uploads de etapas ocultas removidos ao salvar nova resposta
+- **Exclusão de submissão** — `DELETE /submissions/:id` remove DB + arquivos no disco
 
 **O que ainda falta:**
 
-- Editor visual de ramificações (diagrama)
-- Biblioteca de templates na UI com preview
-- Histórico de versões navegável no admin
+- `MULTI_CHOICE` na UI e API
+- Admin: campo `conditionValue` no editor de condicional
+- Editor visual de fluxo (diagrama interativo)
 - Etapas condicionais com operadores compostos (AND/OR)
+- Remover duplicação `choiceOptions` vs `questionConfig.options`
 
 ---
 
@@ -260,9 +267,9 @@ Itens do código atual que podem ser refinados sem grandes features.
 |------|----------|----------|
 | Status `DRAFT` | Existe no enum `SubmissionStatus`, não é usado | Usar para rascunho antes de `IN_PROGRESS`, ou remover do schema |
 | Seed idempotente | Etapas só criadas se workflow tiver 0 steps | Documentar que alterações no seed exigem `--volumes` ou edição via admin |
-| Preview no admin | Mostra `StepInstructions`, sem upload/CHOICE/ramificação | Preview completo opcional em iframe |
-| Admin: `conditionValue` | API e seed suportam; editor não expõe na UI | Campo condicional para resposta específica em CHOICE |
-| Admin: perfil e respostas | API retorna `branchKey` e `answers`; detalhe não exibe | Mostrar no detalhe da submissão |
+| Admin: `conditionValue` | API e seed suportam; editor não expõe na UI | Campo condicional para resposta específica em QUESTION |
+| Admin: respostas na listagem | Detalhe exibe respostas; listagem não | Coluna ou filtro por respostas |
+| `MULTI_CHOICE` | No schema Prisma; bloqueado na API | UI wizard + admin + validação |
 | Healthcheck da API | Postgres e ClamAV têm healthcheck no Compose; API não | Adicionar `GET /health` no healthcheck do serviço `api` |
 | ESLint compartilhado | Não implementado | Pacote `packages/eslint-config` para admin, web e api |
 | Ícones de tipo de documento | Campo `icon` no schema, pouco usado na UI | Mapear ícones MUI no admin e no wizard |
@@ -279,11 +286,11 @@ Itens do código atual que podem ser refinados sem grandes features.
 | 3 | Identificação do remetente | Crítica | Baixo–médio | Migração DB |
 | 4 | Storage S3/MinIO | Crítica | Médio | Infra |
 | 5 | Dados no wizard / link por convite | Alta | Médio | Item 3 |
-| 6 | Admin: copiar link, filtros, ZIP | Alta | Baixo–médio | Copiar link feito |
+| 6 | Admin: copiar link, filtros, ZIP, excluir | Alta | Baixo–médio | Copiar link e excluir feitos |
 | 7 | Retomada por e-mail | Alta | Médio | E-mail, item 3 |
 | 8 | Notificações | Alta | Médio | E-mail |
 | 9 | Testes + CI | Alta | Médio–alto | — |
-| 10 | Etapas condicionais | **Feito (MVP)** | — | — |
+| 10 | Etapas condicionais + tipos de pergunta | **Feito (MVP)** | — | — |
 | 11 | Caso/processo multi-participante | Média | Alto | Item 3, 5 |
 | 12 | LGPD (termo, retenção, auditoria) | Média | Médio–alto | Auth, logs |
 | 13 | Antivírus (ClamAV no Docker) | **Feito (MVP)** | — | Docker |
@@ -312,8 +319,9 @@ Fase 3 — Produção
   → Testes + CI + healthcheck da API
 
 Fase 4 — Produto avançado
+  → MULTI_CHOICE + conditionValue no admin
   → Caso/processo com múltiplos herdeiros
-  → Editor visual de ramificações / operadores AND/OR em condicionais
+  → Editor visual de fluxo / operadores AND/OR em condicionais
   → LGPD e auditoria
 ```
 

@@ -1,17 +1,16 @@
 # Banco de dados
 
 **Schema:** `apps/api/prisma/schema.prisma`  
-**Migrations:**
-
-- `apps/api/prisma/migrations/20250828220000_init/`
-- `apps/api/prisma/migrations/20250829220000_workflow_intelligence/`
+**Migration:** `apps/api/prisma/migrations/20250829250000_baseline/`
 
 ## Diagrama de relacionamentos
 
 ```
 DocumentType ──< WorkflowStep >── Workflow ──< Submission ──< StepUpload
-                     │                              │
-                     │                              ├──< SubmissionAnswer
+                     │                │            │
+                     │                │            ├──< SubmissionAnswer
+                     │                │
+                     │                └──< WorkflowVersion
                      └──────────────────────────────┘
 ```
 
@@ -22,7 +21,20 @@ DocumentType ──< WorkflowStep >── Workflow ──< Submission ──< St
 | Valor | Descrição |
 |-------|-----------|
 | `DOCUMENT` | Upload de arquivo(s) |
-| `CHOICE` | Pergunta com opções (`choiceOptions`) |
+| `QUESTION` | Pergunta (tipo definido em `questionType`) |
+
+### `QuestionType`
+
+| Valor | UI / validação |
+|-------|----------------|
+| `SINGLE_CHOICE` | Radio buttons |
+| `SELECT` | Lista suspensa |
+| `YES_NO` | Sim / Não (opções fixas) |
+| `TEXT` | Texto curto (máx. 255 caracteres) |
+| `TEXTAREA` | Texto longo (máx. 5.000 caracteres) |
+| `NUMBER` | Numérico com min/max opcionais |
+| `DATE` | Data ISO (`YYYY-MM-DD`) |
+| `MULTI_CHOICE` | No schema; **bloqueado** na API até Fase 5 |
 
 ### `SubmissionStatus`
 
@@ -60,8 +72,23 @@ No seed, IDs fixos usam formato `00000000-0000-0000-0000-00000000000N`.
 | isActive | boolean | Padrão: false |
 | isTemplate | boolean | Padrão: false — templates não são públicos |
 | templateCategory | string? | Ex.: `fornecedores`, `onboarding` |
-| version | int | Padrão: 1 — incrementa ao editar workflow com submissões |
+| version | int | Padrão: 1 — incrementa ao alterar **fluxo** com submissões existentes |
 | createdAt, updatedAt | datetime | Auditoria |
+
+### `workflow_versions`
+
+Arquivo de snapshots por versão (quando o workflow com submissões é alterado).
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| id | UUID | PK |
+| workflowId | UUID | FK → workflows (CASCADE) |
+| version | int | Número da versão arquivada |
+| snapshot | JSON | `WorkflowSnapshot` antes do incremento |
+| changeLabel | string? | Descrição da alteração (ex.: "Ordem das etapas alterada") |
+| createdAt | datetime | Quando foi arquivada |
+
+**Índice único:** `(workflowId, version)`
 
 ### `workflow_steps`
 
@@ -69,17 +96,18 @@ No seed, IDs fixos usam formato `00000000-0000-0000-0000-00000000000N`.
 |-------|------|-----------|
 | id | UUID | PK |
 | workflowId | UUID | FK → workflows (CASCADE) |
-| documentTypeId | UUID | FK → document_types (RESTRICT) |
+| documentTypeId | UUID? | FK → document_types (RESTRICT); obrigatório em DOCUMENT |
 | title | string | Título da etapa |
 | instructions | string? | Markdown |
 | helpText | string? | Dica ao usuário |
 | exampleUrl | string? | Link de exemplo |
 | position | int | Ordem (único por workflow) |
 | stepKind | StepKind | Padrão: `DOCUMENT` |
-| branchKey | string? | Perfil (ex.: `pf`, `pj`) — vazio = todos |
+| questionType | QuestionType? | Obrigatório quando `stepKind === QUESTION` |
+| questionConfig | JSON? | Opções, placeholder, min/max, etc. |
 | conditionStepId | string? | ID de etapa anterior que deve estar preenchida |
-| conditionValue | string? | Opcional — exige resposta exata em pré-requisito CHOICE |
-| choiceOptions | string[] | Opções da etapa CHOICE |
+| conditionValue | string? | Opcional — exige resposta exata em pré-requisito QUESTION |
+| choiceOptions | string[] | Labels das opções (sincronizado com `questionConfig.options`; depreciar depois) |
 | isRequired | boolean | Padrão: true |
 | maxFiles | int | Padrão: 1 |
 | acceptedExtensionsOverride | string[] | Override de extensões |
@@ -87,7 +115,7 @@ No seed, IDs fixos usam formato `00000000-0000-0000-0000-00000000000N`.
 
 **Índice único:** `(workflowId, position)`
 
-**Regras de condicional (API):** `conditionStepId` deve apontar para etapa com `position` menor. `conditionValue` só é válido se o pré-requisito for CHOICE e o valor existir em `choiceOptions`.
+**Regras de condicional (API):** `conditionStepId` deve apontar para etapa com `position` menor. `conditionValue` só é válido se o pré-requisito for QUESTION com opções e o valor existir nelas.
 
 ### `submissions`
 
@@ -96,7 +124,6 @@ No seed, IDs fixos usam formato `00000000-0000-0000-0000-00000000000N`.
 | id | UUID | PK |
 | workflowId | UUID | FK → workflows (CASCADE) |
 | status | SubmissionStatus | |
-| branchKey | string? | Perfil escolhido no wizard |
 | workflowSnapshot | JSON? | Cópia do workflow na criação da submissão |
 | currentStepPosition | int | Índice na lista de etapas visíveis |
 | startedAt | datetime | Criação |
@@ -109,9 +136,12 @@ No seed, IDs fixos usam formato `00000000-0000-0000-0000-00000000000N`.
 | id | UUID | PK |
 | submissionId | UUID | FK → submissions (CASCADE) |
 | workflowStepId | UUID | FK → workflow_steps (CASCADE) |
-| value | string | Resposta da etapa CHOICE |
+| value | string | Resposta da etapa QUESTION |
+| createdAt, updatedAt | datetime | Auditoria |
 
 **Índice único:** `(submissionId, workflowStepId)`
+
+Respostas opcionais vazias removem o registro (não ficam com string vazia).
 
 ### `step_uploads`
 
@@ -131,7 +161,7 @@ No seed, IDs fixos usam formato `00000000-0000-0000-0000-00000000000N`.
 JSON capturado em `POST /public/workflows/:slug/submissions`. Estrutura definida em `packages/types/src/workflow-logic.ts` (`WorkflowSnapshot`):
 
 - Metadados do workflow (`workflowId`, `name`, `slug`, `version`, `capturedAt`)
-- Array `steps` com todos os campos necessários para renderizar o wizard sem consultar o workflow ao vivo
+- Array `steps` com todos os campos necessários para renderizar o wizard sem consultar o workflow ao vivo (`stepKind`, `questionType`, `questionConfig`, condicionais, etc.)
 
 A API resolve o workflow da submissão a partir do snapshot quando presente.
 
@@ -139,9 +169,12 @@ A API resolve o workflow da submissão a partir do snapshot quando presente.
 
 Lógica compartilhada em `packages/types/src/workflow-logic.ts`:
 
-- `getVisibleSteps()` — filtra por `branchKey` e condicionais
-- `isStepVisible()` — verifica ramificação e pré-requisito preenchido
+- `getVisibleSteps()` — filtra por condicionais e respostas/uploads
+- `getStepperSteps()` — etapas exibidas no stepper (inclui documentos futuros em cadeia; oculta dependentes de pergunta)
+- `getStepLockMessage()` — mensagem de bloqueio no stepper
+- `isStepVisible()` — verifica pré-requisito preenchido
 - `completedStepIdsFromUploads()` — etapas DOCUMENT concluídas
+- `diffWorkflowSnapshots()` — compara dois snapshots e retorna lista de alterações legíveis
 
 ## Migrations e seed
 
@@ -156,6 +189,8 @@ docker exec docs-flow-api-1 sh -c "cd /app && npm run seed --workspace=@docs-flo
 Para recriar o banco do zero:
 
 ```bash
+npm run db:reset
+# ou
 ./scripts/build.sh down dev --volumes
 ./scripts/build.sh dev
 ```

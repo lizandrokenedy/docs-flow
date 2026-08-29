@@ -243,7 +243,7 @@ export function FileDropzone({
               : 'Arraste arquivos aqui ou clique para selecionar'}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            {acceptedExtensions.join(', ').toUpperCase()} — até {formatFileSize(maxSizeBytes)}
+            {acceptedExtensions.join(', ').toUpperCase()}, até {formatFileSize(maxSizeBytes)}
             {allowsMultiple && ` · até ${fileLimit} arquivo(s)`}
           </Typography>
         </MotionPaper>

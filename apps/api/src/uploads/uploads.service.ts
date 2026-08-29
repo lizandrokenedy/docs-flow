@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, unlinkSync } from 'fs';
 import { extname, join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface UploadValidation {
@@ -11,6 +12,13 @@ export interface UploadValidation {
   maxFiles: number;
   currentFileCount: number;
 }
+
+type UploadRecord = {
+  id: string;
+  submissionId: string;
+  workflowStepId: string;
+  storedName: string;
+};
 
 @Injectable()
 export class UploadsService {
@@ -93,10 +101,7 @@ export class UploadsService {
     });
   }
 
-  async removeUpload(uploadId: string) {
-    const upload = await this.prisma.stepUpload.findUnique({ where: { id: uploadId } });
-    if (!upload) return null;
-
+  unlinkUploadFile(upload: Pick<UploadRecord, 'submissionId' | 'workflowStepId' | 'storedName'>) {
     const fullPath = join(
       this.uploadDir,
       upload.submissionId,
@@ -104,11 +109,40 @@ export class UploadsService {
       upload.storedName,
     );
 
-    const { unlinkSync, existsSync: fileExists } = await import('fs');
-    if (fileExists(fullPath)) {
+    if (existsSync(fullPath)) {
       unlinkSync(fullPath);
     }
+  }
 
+  async removeUpload(uploadId: string) {
+    const upload = await this.prisma.stepUpload.findUnique({ where: { id: uploadId } });
+    if (!upload) return null;
+
+    this.unlinkUploadFile(upload);
     return this.prisma.stepUpload.delete({ where: { id: uploadId } });
+  }
+
+  async removeUploadsForStep(
+    stepId: string,
+    tx?: Prisma.TransactionClient,
+  ) {
+    const client = tx ?? this.prisma;
+    const uploads = await client.stepUpload.findMany({ where: { workflowStepId: stepId } });
+
+    for (const upload of uploads) {
+      this.unlinkUploadFile(upload);
+      await client.stepUpload.delete({ where: { id: upload.id } });
+    }
+  }
+
+  async removeSubmissionStorage(submissionId: string) {
+    const submissionDir = join(this.uploadDir, submissionId);
+    const { existsSync: dirExists } = await import('fs');
+    if (!dirExists(submissionDir)) {
+      return;
+    }
+
+    const { rm } = await import('fs/promises');
+    await rm(submissionDir, { recursive: true, force: true });
   }
 }

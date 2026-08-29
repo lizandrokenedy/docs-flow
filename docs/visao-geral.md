@@ -8,7 +8,7 @@ Casos de uso típicos:
 
 - Abertura de conta com envio de RG, CPF e comprovante
 - Inventário judicial com dezenas de certidões e comprovantes
-- Homologação de fornecedores com fluxos diferentes para PF e PJ
+- Homologação de fornecedores com fluxos diferentes para PF e PJ (via perguntas condicionais)
 - Qualquer processo interno que hoje recebe documentos por e-mail ou WhatsApp de forma desorganizada
 
 ## Conceitos principais
@@ -29,7 +29,7 @@ Fluxo completo que o usuário final percorre. Possui:
 - Nome, slug (URL amigável) e descrição
 - Status ativo/inativo
 - Flag **template** (`isTemplate`) — templates não aparecem em `/w/{slug}` até serem duplicados
-- **Versão** (`version`) — incrementa quando o workflow é editado e já possui submissões
+- **Versão** (`version`) — incrementa quando há submissões e o **fluxo** é alterado (não incrementa para mudanças só de texto/instruções)
 - Lista ordenada de **etapas**
 
 Só workflows **ativos** e **não-template** com pelo menos uma etapa ficam disponíveis publicamente em `/w/{slug}`.
@@ -40,25 +40,29 @@ Um passo dentro do workflow. Cada etapa possui:
 
 | Campo | Descrição |
 |-------|-----------|
-| `stepKind` | `DOCUMENT` (upload de arquivo) ou `CHOICE` (pergunta com opções) |
-| Tipo de documento | Referência ao catálogo (obrigatório no schema, mesmo em etapas CHOICE) |
+| `stepKind` | `DOCUMENT` (upload) ou `QUESTION` (pergunta) |
+| `questionType` | Tipo da pergunta: `SINGLE_CHOICE`, `SELECT`, `YES_NO`, `TEXT`, `TEXTAREA`, `NUMBER`, `DATE` |
+| `questionConfig` | JSON com opções, placeholder, min/max de caracteres ou valor |
+| `documentTypeId` | Obrigatório em etapas DOCUMENT; opcional (null) em QUESTION |
 | Título, instruções, ajuda, exemplo | Conteúdo exibido no wizard |
 | `isRequired` | Obrigatória ou opcional |
 | `maxFiles` | Quantidade máxima de arquivos (etapas DOCUMENT) |
-| `branchKey` | Perfil/ramo (ex.: `pf`, `pj`, `herdeiro`) — etapa só aparece para quem escolheu esse perfil |
 | `conditionStepId` | Etapa anterior que deve estar **preenchida** antes desta aparecer |
-| `choiceOptions` | Opções de resposta (etapas CHOICE, mínimo 2) |
+| `conditionValue` | Opcional — exige resposta exata em pré-requisito QUESTION |
+| `choiceOptions` | Labels das opções (sincronizado com `questionConfig.options`) |
 
 #### Etapas condicionais
 
-Uma etapa só entra na lista visível do wizard quando a etapa referenciada em `conditionStepId` foi preenchida:
+Uma etapa só entra na lista **navegável** do wizard quando a etapa referenciada em `conditionStepId` foi preenchida:
 
 - **Pré-requisito DOCUMENT** → pelo menos um arquivo enviado naquela etapa
-- **Pré-requisito CHOICE** → pergunta respondida; se `conditionValue` estiver definido (via API/seed), a resposta deve ser exatamente esse valor
+- **Pré-requisito QUESTION** → pergunta respondida; se `conditionValue` estiver definido, a resposta deve ser exatamente esse valor
+
+O **stepper** pode antecipar etapas de documentos em cadeia (com ícone de cadeado até liberar). Etapas que dependem de pergunta só aparecem após a resposta.
 
 A **primeira etapa** do fluxo não pode ter condicional — só aparece a opção "Sempre visível" no admin.
 
-Ao **reordenar** etapas, condicionais que ficarem inválidas (pré-requisito na mesma posição ou depois) são **removidas automaticamente** pela API.
+Ao **reordenar** etapas, condicionais inválidas são **removidas automaticamente** pela API.
 
 ### Submissão
 
@@ -66,10 +70,9 @@ Uma execução do workflow por um usuário final. Armazena:
 
 - Status (`IN_PROGRESS`, `COMPLETED`)
 - Posição atual no fluxo (índice nas etapas **visíveis**, incluindo revisão)
-- `branchKey` — perfil escolhido no início (quando o workflow tem ramificações)
 - `workflowSnapshot` — cópia JSON do workflow no momento da criação (etapas congeladas)
 - Arquivos enviados por etapa (`StepUpload`)
-- Respostas de etapas CHOICE (`SubmissionAnswer`)
+- Respostas de etapas QUESTION (`SubmissionAnswer`)
 
 Submissões existentes usam o **snapshot**, não o workflow ao vivo — edições posteriores não alteram envios em andamento.
 
@@ -80,20 +83,20 @@ Arquivo enviado em uma etapa **DOCUMENT** de uma submissão. Antes de gravar no 
 ## Fluxo de uso (admin)
 
 1. Cadastrar **tipos de documento**
-2. Criar um **workflow** (inicia inativo) ou **usar template**
-3. Adicionar e ordenar **etapas** (documento, escolha, condicionais, ramificações)
-4. Revisar no **preview**
-5. **Ativar** o workflow
-6. Compartilhar o link público `/w/{slug}`
-7. Acompanhar **submissões** e baixar arquivos
+2. Criar um **workflow** (inicia inativo) ou usar a **biblioteca de templates**
+3. Adicionar e ordenar **etapas** (documento, pergunta, condicionais)
+4. **Ativar** o workflow
+5. Compartilhar o link público `/w/{slug}`
+6. Acompanhar **submissões**, ver respostas e documentos, **excluir** quando necessário
+7. Consultar **histórico de alterações** no editor (quando há submissões e mudanças de fluxo)
 
 ## Fluxo de uso (usuário final)
 
 1. Acessa o link `/w/{slug}`
-2. Seleciona **perfil** (quando o workflow tem `branchKey` nas etapas)
-3. Percorre apenas as etapas **visíveis** para seu perfil e progresso
-4. Em etapas DOCUMENT: envia arquivos; em etapas CHOICE: escolhe uma opção
-5. Avança com **Próximo** (obrigatórias exigem preenchimento)
+2. Submissão criada automaticamente (com snapshot)
+3. Percorre as etapas **visíveis** conforme progresso e respostas
+4. Em etapas DOCUMENT: envia arquivos; em etapas QUESTION: responde conforme o tipo
+5. Avança com **Próximo** (obrigatórias exigem preenchimento válido)
 6. Revisa tudo na etapa final (com botão **Alterar** por etapa)
 7. **Finaliza** o envio
 
@@ -102,10 +105,12 @@ A sessão é salva no navegador (`localStorage`) para retomar depois.
 ## O que já funciona no MVP
 
 - Scan antivírus nos uploads (ClamAV no Docker, fail-closed)
-- Workflows com etapas condicionais, ramificações e escolhas
-- Templates reutilizáveis e duplicação de workflows
+- Workflows com etapas condicionais e **tipos de pergunta** (escolha, texto, número, data)
+- Templates reutilizáveis, biblioteca com preview e duplicação de workflows
+- Histórico de versões com diff legível no admin
 - Versionamento por snapshot nas submissões
 - Toast e copiar link no admin
+- Detalhe de submissão com respostas e documentos; exclusão de submissão
 
 ## Limitações do MVP atual
 
@@ -116,6 +121,6 @@ Resumo das principais lacunas. Análise completa: **[roadmap-e-lacunas.md](./roa
 - Armazenamento de arquivos **local** (volume Docker), sem S3/MinIO
 - Sem notificações por e-mail
 - Sem exportação em lote de submissões
-- Admin não exibe perfil (`branchKey`) nem respostas CHOICE no detalhe da submissão
-- Admin não expõe `conditionValue` (condicional por resposta específica em CHOICE — só via API/seed)
+- Admin não expõe `conditionValue` (condicional por resposta específica — só via API/seed)
+- `MULTI_CHOICE` no schema, mas **não implementado** na UI/API
 - Sem testes automatizados nem CI

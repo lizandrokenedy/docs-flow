@@ -16,8 +16,6 @@ import {
   IconButton,
   TextField,
   Typography,
-  Card,
-  CardContent,
   Tooltip,
 } from '@mui/material';
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
@@ -41,15 +39,10 @@ interface WorkflowRow {
   _count: { submissions: number };
 }
 
-interface TemplateRow extends WorkflowRow {
-  templateCategory?: string | null;
-}
-
 export default function WorkflowsPage() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const [open, setOpen] = useState(false);
-  const [templateOpen, setTemplateOpen] = useState(false);
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [description, setDescription] = useState('');
@@ -57,11 +50,6 @@ export default function WorkflowsPage() {
   const { data: workflows = [], isLoading } = useQuery({
     queryKey: ['workflows'],
     queryFn: () => api.get<WorkflowRow[]>('/workflows'),
-  });
-
-  const { data: templates = [] } = useQuery({
-    queryKey: ['workflow-templates'],
-    queryFn: () => api.get<TemplateRow[]>('/workflows/templates'),
   });
 
   const createMutation = useMutation({
@@ -95,18 +83,6 @@ export default function WorkflowsPage() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['workflows'] });
       showToast('Workflow duplicado');
-      window.location.href = `/workflows/${data.id}`;
-    },
-    onError: (err: Error) => showToast(err.message, 'error'),
-  });
-
-  const createFromTemplateMutation = useMutation({
-    mutationFn: ({ templateId, payload }: { templateId: string; payload: { name: string; slug: string } }) =>
-      api.post<WorkflowRow>(`/workflows/from-template/${templateId}`, payload),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['workflows'] });
-      showToast('Workflow criado a partir do template');
-      setTemplateOpen(false);
       window.location.href = `/workflows/${data.id}`;
     },
     onError: (err: Error) => showToast(err.message, 'error'),
@@ -206,8 +182,8 @@ export default function WorkflowsPage() {
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
         <Typography variant="h4">Workflows</Typography>
         <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button variant="outlined" onClick={() => setTemplateOpen(true)}>
-            Usar template
+          <Button variant="outlined" component={Link} href="/workflows/templates">
+            Biblioteca de templates
           </Button>
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpen(true)}>
             Novo Workflow
@@ -265,53 +241,6 @@ export default function WorkflowsPage() {
           >
             Criar e Editar
           </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={templateOpen} onClose={() => setTemplateOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Criar a partir de template</DialogTitle>
-        <DialogContent>
-          {templates.length === 0 ? (
-            <Typography color="text.secondary" sx={{ py: 2 }}>
-              Nenhum template disponível. Marque um workflow como template no editor.
-            </Typography>
-          ) : (
-            templates.map((template) => (
-              <Card key={template.id} sx={{ mb: 2 }}>
-                <CardContent>
-                  <Typography variant="h6">{template.name}</Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    {template.description}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {template.steps.length} etapas
-                    {template.templateCategory ? ` · ${template.templateCategory}` : ''}
-                  </Typography>
-                  <Box sx={{ mt: 2 }}>
-                    <Button
-                      variant="contained"
-                      size="small"
-                      onClick={() => {
-                        const suggestedSlug = `${template.slug}-${Date.now().toString().slice(-4)}`;
-                        createFromTemplateMutation.mutate({
-                          templateId: template.id,
-                          payload: {
-                            name: `${template.name} (novo)`,
-                            slug: suggestedSlug,
-                          },
-                        });
-                      }}
-                    >
-                      Usar este template
-                    </Button>
-                  </Box>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setTemplateOpen(false)}>Fechar</Button>
         </DialogActions>
       </Dialog>
     </Box>

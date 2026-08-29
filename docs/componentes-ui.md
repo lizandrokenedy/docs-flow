@@ -3,7 +3,7 @@
 **Pacote:** `@docs-flow/ui`  
 **Diretório:** `packages/ui/src/`
 
-Componentes usados no wizard público e no preview do admin.
+Componentes usados no wizard público e na biblioteca de templates do admin.
 
 ## Tema
 
@@ -27,13 +27,15 @@ Barra de progresso do wizard.
 
 | Prop | Tipo | Descrição |
 |------|------|-----------|
-| steps | array | Etapas do workflow |
+| steps | array | Etapas do stepper (`getStepperSteps`) |
 | activeStep | number | Índice da etapa atual (0-based) |
+| lockMessages | Record | Mensagens de bloqueio por stepId |
 
 **Modos:**
 
 - **Clássico** (< 6 etapas): stepper MUI com labels
-- **Compacto** (≥ 6 etapas): barra de progresso, "Etapa X de Y", título atual, faixa rolável de ícones com tooltip
+- **Compacto** (≥ 6 etapas): barra de progresso, "Etapa X de Y", título atual, faixa rolável de ícones com tooltip e cadeado em etapas bloqueadas
+- Na revisão (modo compacto): label "Revisão do envio"
 
 Etapa concluída = índice menor que `activeStep`.
 
@@ -43,11 +45,19 @@ Etapa concluída = índice menor que `activeStep`.
 
 Card com instruções da etapa:
 
-- Título e tipo de documento
+- Título
 - Instruções em **Markdown** (`react-markdown`)
 - Alerta de ajuda (ícone `?`)
 - Link "Ver exemplo" (nova aba)
-- Formatos aceitos e tamanho máximo em MB
+- Formatos aceitos e tamanho máximo em MB (etapas DOCUMENT)
+
+No wizard público, o tipo de documento **não** é exibido ao usuário.
+
+### `StepCard`
+
+**Arquivo:** `StepCard.tsx`
+
+Wrapper visual (card com padding) para conteúdo de etapa — usado em perguntas e uploads.
 
 ### `FileDropzone`
 
@@ -80,37 +90,36 @@ Tela de revisão pré-finalização:
 
 - Lista etapas visíveis do fluxo
 - DOCUMENT: arquivos com nome e tamanho; "Nenhum arquivo" em opcionais vazias
-- CHOICE: exibe `Resposta: {valor}` em vez de arquivo
+- QUESTION: exibe `Resposta: {valor}` em vez de arquivo
 - Botão **Alterar** por etapa (`onEditStep`)
+
+### `QuestionStep`
+
+**Arquivo:** `QuestionStep.tsx`
+
+Wrapper que renderiza o input conforme `questionType`:
+
+| Tipo | Componente interno |
+|------|-------------------|
+| `SINGLE_CHOICE`, `YES_NO` | `ChoiceStep` (radio) |
+| `SELECT` | MUI Select |
+| `TEXT`, `TEXTAREA` | TextField |
+| `NUMBER` | TextField type number |
+| `DATE` | TextField type date |
+
+Props: `questionType`, `questionConfig`, `value`, `onChange`, `error`, conteúdo da etapa.
 
 ### `ChoiceStep`
 
 **Arquivo:** `ChoiceStep.tsx`
 
-Etapa de pergunta com opções em radio buttons.
+Radio buttons para opções de escolha única. Usado internamente por `QuestionStep`.
 
 | Prop | Descrição |
 |------|-----------|
 | title, instructions, helpText | Conteúdo da etapa |
-| options | Lista de strings (`choiceOptions`) |
+| options | Lista de strings |
 | value / onChange | Resposta selecionada |
-
-Sem upload de arquivo.
-
-### `BranchPicker`
-
-**Arquivo:** `BranchPicker.tsx`
-
-Seleção de perfil antes das etapas de documento.
-
-| Prop | Descrição |
-|------|-----------|
-| options | `{ key, label }[]` |
-| onSelect | Callback com `branchKey` |
-
-### `formatBranchLabel`
-
-Converte chaves conhecidas (`herdeiro`, `inventariante`, `advogado`) em labels amigáveis; demais chaves retornam o valor original.
 
 ### `SuccessScreen`
 

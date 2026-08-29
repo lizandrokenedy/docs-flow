@@ -26,6 +26,48 @@ services:
       retries: 5
       start_period: 120s
 
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: dev
+    environment:
+      DATABASE_URL: postgresql://docsflow:docsflow@postgres:5432/docsflow?schema=public
+    volumes:
+      - ./apps/api:/app/apps/api
+      - ./packages:/app/packages
+      - /app/node_modules
+      - /app/apps/api/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    working_dir: /app/apps/api
+    restart: 'no'
+    command: >
+      sh -c "npx prisma generate --schema=prisma/schema.prisma &&
+             npx prisma migrate deploy --schema=prisma/schema.prisma"
+
+  seed:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: dev
+    environment:
+      DATABASE_URL: postgresql://docsflow:docsflow@postgres:5432/docsflow?schema=public
+    volumes:
+      - ./apps/api:/app/apps/api
+      - ./packages:/app/packages
+      - /app/node_modules
+      - /app/apps/api/node_modules
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    working_dir: /app/apps/api
+    restart: 'no'
+    command: >
+      sh -c "npx prisma generate --schema=prisma/schema.prisma &&
+             npx prisma db seed --schema=prisma/schema.prisma"
+
   api:
     build:
       context: .
@@ -52,14 +94,16 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      seed:
+        condition: service_completed_successfully
       clamav:
         condition: service_healthy
     working_dir: /app
     command: >
-      sh -c "npm run generate --workspace=@docs-flow/api &&
-             npm run migrate --workspace=@docs-flow/api &&
-             npm run seed --workspace=@docs-flow/api &&
-             npm run dev --workspace=@docs-flow/api"
+      sh -c "cd apps/api && npx prisma generate --schema=prisma/schema.prisma &&
+             cd /app && npm run dev --workspace=@docs-flow/api"
 
   admin:
     build:

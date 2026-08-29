@@ -6,6 +6,7 @@ import { DataGrid, GridColDef, GridRowParams } from '@mui/x-data-grid';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { DeleteSubmissionButton } from '@/components/DeleteSubmissionButton';
 import { api } from '@/lib/api';
 
 interface SubmissionRow {
@@ -70,22 +71,30 @@ export default function SubmissionsPage() {
       field: 'completedAt',
       headerName: 'Finalizado em',
       width: 180,
-      valueGetter: (value?: string) => (value ? new Date(value).toLocaleString('pt-BR') : '—'),
+      valueGetter: (value?: string) => (value ? new Date(value).toLocaleString('pt-BR') : '-'),
     },
     {
       field: 'actions',
       headerName: 'Ações',
-      width: 100,
+      width: 120,
       sortable: false,
       renderCell: (params) => (
-        <IconButton
-          size="small"
-          component={Link}
-          href={`/submissions/${params.row.id}`}
-          aria-label="ver detalhes"
-        >
-          <VisibilityIcon fontSize="small" />
-        </IconButton>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <IconButton
+            size="small"
+            component={Link}
+            href={`/submissions/${params.row.id}`}
+            aria-label="ver detalhes"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <VisibilityIcon fontSize="small" />
+          </IconButton>
+          <DeleteSubmissionButton
+            submissionId={params.row.id}
+            workflowName={params.row.workflow?.name}
+            variant="icon"
+          />
+        </Box>
       ),
     },
   ];

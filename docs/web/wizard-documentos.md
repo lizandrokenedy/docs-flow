@@ -6,13 +6,12 @@
 
 ## Propósito
 
-Fluxo guiado passo a passo para o usuário final enviar documentos de um workflow ativo.
+Fluxo guiado passo a passo para o usuário final enviar documentos e responder perguntas de um workflow ativo.
 
 ## Fluxo completo
 
 ```
 Carregar workflow
-  → [Selecionar perfil] (se houver branchKey nas etapas)
   → Criar/retomar submissão (com snapshot)
   → Etapas visíveis 1..N
   → Revisão
@@ -25,108 +24,96 @@ Carregar workflow
 - Busca workflow em `GET /public/workflows/{slug}`
 - Se inativo ou inexistente: mensagem de erro
 
-### 2. Seleção de perfil (opcional)
-
-Quando alguma etapa possui `branchKey`, o componente `BranchPicker` é exibido **antes** das etapas de documento.
-
-- Cria submissão com `POST /public/workflows/{slug}/submissions` + `{ "branchKey": "pf" }`
-- Ou atualiza com `PATCH /public/submissions/{id}/branch`
-- Labels amigáveis para `herdeiro`, `inventariante`, `advogado`; demais chaves aparecem como estão (`pf`, `pj`, etc.)
-
-### 3. Persistência de sessão
+### 2. Persistência de sessão
 
 Chave no `localStorage`: `docsflow_submission_{slug}`
 
 - Salva o ID da submissão ao criar
 - Ao recarregar a página, retoma a submissão existente
-- Restaura a posição via `currentStepPosition` da API
+- Restaura a posição via `currentStepPosition` da API (limitada às etapas visíveis)
 - Remove a chave ao finalizar ou se a submissão for inválida
 
-### 4. Etapas visíveis
+### 3. Etapas visíveis
 
-O wizard **não** mostra todas as etapas do workflow — apenas as **visíveis** para o perfil e progresso atual (`getVisibleSteps` em `@docs-flow/types`):
+O wizard navega apenas pelas etapas **visíveis** para o progresso atual (`getVisibleSteps` em `@docs-flow/types`):
 
 | Filtro | Regra |
 |--------|-------|
-| Ramificação | Etapa com `branchKey` só aparece se igual ao perfil da submissão |
 | Condicional | Etapa com `conditionStepId` só aparece após a etapa referenciada ser preenchida |
+| `conditionValue` | Se definido, a resposta do pré-requisito deve ser exatamente esse valor |
 
 **Preenchimento:**
 
 - Etapa **DOCUMENT** → pelo menos um upload na etapa
-- Etapa **CHOICE** → resposta salva via API
+- Etapa **QUESTION** → resposta válida salva via API
 
-### 5. Stepper de progresso
+Ao mudar uma resposta que altera o ramo condicional, respostas e uploads de etapas que deixaram de ser visíveis são **removidos automaticamente** pela API.
 
-Componente `WorkflowStepper` — recebe apenas etapas **visíveis**:
+### 4. Stepper de progresso
+
+Componente `WorkflowStepper` — usa `getStepperSteps()` (pode incluir etapas futuras em cadeias de documentos):
 
 - **< 6 etapas:** stepper horizontal (desktop) ou vertical (mobile)
-- **≥ 6 etapas:** modo compacto com barra de progresso, contador "Etapa X de Y" e faixa rolável de ícones
+- **≥ 6 etapas:** modo compacto com barra de progresso e ícones roláveis
+- Etapas **bloqueadas** exibem ícone de cadeado e mensagem do tipo *Libera ao preencher "RG"*
+- Etapas que dependem de pergunta só entram no stepper após a resposta
+- Na **revisão**, modo compacto mostra "Revisão do envio"
 
-**Regra de conclusão:** etapa só aparece como concluída após o usuário clicar em **Próximo**.
+O stepper reage em tempo real à resposta sendo editada (preview antes de salvar).
 
-### 6. Cada etapa
+### 5. Cada etapa
 
 #### Etapa DOCUMENT
 
-- `StepInstructions` — título, instruções Markdown, ajuda, formatos e tamanho máximo
+- `StepInstructions` — título, instruções Markdown, ajuda, formatos e tamanho máximo (sem exibir "Tipo: ..." ao usuário)
 - `FileDropzone` — upload por arrastar, clique ou câmera (imagens)
 
-**Upload:**
+#### Etapa QUESTION
 
-- Validação client-side: extensão e tamanho
-- Upload via XHR com barra de progresso
-- Scan antivírus no servidor (ClamAV)
-- Múltiplos arquivos quando `maxFiles > 1`
-- Preview de imagens; botão remover
+Componente `QuestionStep` — renderização por `questionType`:
 
-#### Etapa CHOICE
+| Tipo | UI |
+|------|-----|
+| `SINGLE_CHOICE` / `YES_NO` | Radio buttons (`ChoiceStep` em card) |
+| `SELECT` | Lista suspensa |
+| `TEXT` | Campo de texto curto (máx. 255 caracteres) |
+| `TEXTAREA` | Texto longo (máx. 5.000 caracteres) |
+| `NUMBER` | Campo numérico com min/max configuráveis |
+| `DATE` | Seletor de data (ISO `YYYY-MM-DD`) |
 
-- `ChoiceStep` — opções em radio buttons
-- Sem upload de arquivo
-- Ao clicar **Próximo**, salva resposta em `PATCH /public/submissions/{id}/steps/{stepId}/answer`
+Ao clicar **Próximo**, salva resposta em `PATCH /public/submissions/{id}/steps/{stepId}/answer`. Erros de validação aparecem em alerta.
 
 #### Navegação
 
 | Botão | Comportamento |
 |-------|---------------|
 | Voltar | Etapa anterior; atualiza `currentStepPosition` na API |
-| Próximo | Avança se obrigatória estiver preenchida (arquivo ou resposta CHOICE) |
+| Próximo | Valida no client e no servidor; avança se obrigatória estiver preenchida |
 
-Ao avançar após preencher uma etapa, novas etapas condicionais podem **entrar** na lista visível (stepper atualiza após refetch).
-
-### 7. Etapa de revisão
+### 6. Etapa de revisão
 
 Componente `UploadReview` — resumo das etapas **visíveis**:
 
 - DOCUMENT: arquivos enviados
-- CHOICE: texto `Resposta: {valor}`
+- QUESTION: texto `Resposta: {valor}`
 - Botão **Alterar** por etapa — volta ao índice correspondente
 
 Botão **Finalizar envio** chama `POST /public/submissions/{id}/complete`.
 
-### 8. Tela de sucesso
+### 7. Tela de sucesso
 
-Componente `SuccessScreen`:
-
-- Confirmação de envio
-- ID da submissão
-- Botão **Iniciar novo envio**
+Componente `SuccessScreen` — confirmação, ID da submissão e opção de novo envio.
 
 ## Validações na finalização
 
 A API valida apenas etapas **visíveis** e **obrigatórias**:
 
 - DOCUMENT: ≥ 1 upload
-- CHOICE: resposta registrada
-
-Etapas opcionais vazias são permitidas.
-
-`currentStepPosition` após completar = quantidade de etapas visíveis (índice da revisão).
+- QUESTION: resposta registrada e válida para o `questionType`
 
 ## Snapshot
 
-Ao criar a submissão, a API grava `workflowSnapshot`. Submissões em andamento usam as etapas congeladas — alterações posteriores no admin não afetam o envio.
+Ao criar a submissão, a API grava `workflowSnapshot`. Submissões em andamento usam as etapas congeladas.
 
 ## API utilizada
 
@@ -136,7 +123,8 @@ Veja [api/submissoes-publicas.md](../api/submissoes-publicas.md)
 
 | Slug | Descrição |
 |------|-----------|
-| `abertura-conta` | 3 etapas em cadeia — RG → CPF → comprovante |
+| `abertura-conta` | 3 documentos em cadeia — RG → CPF → comprovante |
 | `inventario-judicial` | 19 etapas — inventário judicial completo |
+| `template-cadastro-fornecedor` | Template com perguntas PF/PJ e docs condicionais |
 
 Detalhes em [seed-e-exemplos.md](../seed-e-exemplos.md)

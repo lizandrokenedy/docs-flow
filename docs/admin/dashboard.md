@@ -44,6 +44,7 @@ Menu lateral (`AdminLayout`):
 - Dashboard
 - Tipos de Documento
 - Workflows
+- Templates
 - Submissões
 
 ## API utilizada

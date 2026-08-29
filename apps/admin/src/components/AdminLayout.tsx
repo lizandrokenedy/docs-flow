@@ -4,6 +4,7 @@ import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import DescriptionIcon from '@mui/icons-material/Description';
 import InboxIcon from '@mui/icons-material/Inbox';
+import LibraryBooksIcon from '@mui/icons-material/LibraryBooks';
 import {
   AppBar,
   Box,
@@ -24,10 +25,19 @@ import { useState } from 'react';
 
 const DRAWER_WIDTH = 260;
 
+function isNavSelected(pathname: string, href: string) {
+  if (href === '/') return pathname === '/';
+  if (pathname === href) return true;
+  if (!pathname.startsWith(`${href}/`)) return false;
+  if (href === '/workflows' && pathname.startsWith('/workflows/templates')) return false;
+  return true;
+}
+
 const navItems = [
   { href: '/', label: 'Dashboard', icon: <DashboardIcon /> },
   { href: '/document-types', label: 'Tipos de Documento', icon: <DescriptionIcon /> },
   { href: '/workflows', label: 'Workflows', icon: <AccountTreeIcon /> },
+  { href: '/workflows/templates', label: 'Templates', icon: <LibraryBooksIcon /> },
   { href: '/submissions', label: 'Submissões', icon: <InboxIcon /> },
 ];
 
@@ -50,7 +60,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
             <ListItemButton
               component={Link}
               href={item.href}
-              selected={pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))}
+              selected={isNavSelected(pathname, item.href)}
               onClick={() => setMobileOpen(false)}
             >
               <ListItemIcon>{item.icon}</ListItemIcon>

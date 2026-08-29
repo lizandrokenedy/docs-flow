@@ -88,25 +88,29 @@ Cada etapa inclui instruções em Markdown contextualizadas para o processo de i
 | Slug | `template-cadastro-fornecedor` |
 | Status | **Template** (inativo — não aparece em `/w/...` até duplicar) |
 | Categoria | `fornecedores` |
-| Etapas | 7 |
+| Etapas | 8 |
 
 Template genérico de **homologação de fornecedores**. Demonstra:
 
-- **Ramificação** por perfil (`branchKey`: `pf` / `pj`) — o usuário escolhe no início do wizard
-- **Etapa de escolha** (`CHOICE`) — pergunta sobre registro regulatório
-- **Etapa condicional** — certificado de conformidade só aparece se a resposta for `"Sim"` (`conditionValue` no seed)
+- **Perguntas condicionais** em vez de ramificação por perfil fixo
+- **YES_NO** sobre registro regulatório
+- **SINGLE_CHOICE** para PF vs PJ — documentos diferentes conforme a resposta (`conditionValue`)
+- **Etapa condicional** — certificado de conformidade só aparece se a resposta da etapa 1 for `"Sim"`
 
-| # | Etapa | Perfil / condição |
-|---|-------|-------------------|
-| 1 | Pergunta sobre registro regulatório | Todos (CHOICE: Sim/Não) |
-| 2 | RG | `branchKey: pf` |
-| 3 | CPF | `branchKey: pf` |
-| 4 | Contrato social | `branchKey: pj` |
-| 5 | Certidões negativas | `branchKey: pj` |
-| 6 | Dados bancários | Todos |
-| 7 | Certificado de conformidade | `conditionStepId` → etapa 1, `conditionValue: "Sim"` |
+| # | Etapa | Tipo | Condição |
+|---|-------|------|----------|
+| 1 | Registro regulatório | QUESTION (`YES_NO`) | Sempre visível |
+| 2 | Tipo PF / PJ | QUESTION (`SINGLE_CHOICE`) | Sempre visível |
+| 3 | RG (PF) | DOCUMENT | Resposta etapa 2 = `"Pessoa Física"` |
+| 4 | CPF (PF) | DOCUMENT | Resposta etapa 2 = `"Pessoa Física"` |
+| 5 | Contrato social (PJ) | DOCUMENT | Resposta etapa 2 = `"Pessoa Jurídica"` |
+| 6 | Certidões negativas (PJ) | DOCUMENT | Resposta etapa 2 = `"Pessoa Jurídica"` |
+| 7 | Dados bancários | DOCUMENT | Sempre visível |
+| 8 | Certificado de conformidade | DOCUMENT | Resposta etapa 1 = `"Sim"` |
 
-**Como usar:** Admin → Workflows → **Usar template** → selecione *Cadastro de Fornecedor* → edite e ative.
+Documentos PF/PJ usam `conditionStepId` + `conditionValue` na pergunta de tipo (etapa 2). O certificado regulatório depende da pergunta YES_NO (etapa 1).
+
+**Como usar:** Admin → **Templates** (ou **Biblioteca de templates** na lista de workflows) → selecione *Cadastro de Fornecedor* → crie cópia → edite e ative.
 
 ## Executar manualmente
 
@@ -114,10 +118,18 @@ Template genérico de **homologação de fornecedores**. Demonstra:
 docker exec docs-flow-api-1 sh -c "cd /app && npm run seed --workspace=@docs-flow/api"
 ```
 
+## Reset completo do banco
+
+```bash
+npm run db:reset
+```
+
+Equivale a derrubar volumes, migrar e rodar seed — útil após mudanças de schema ou para reaplicar etapas do seed.
+
 ## Comportamento idempotente
 
 - Tipos de documento: `upsert` por ID fixo
 - Workflows: `upsert` por slug (metadados atualizados; etapas não)
 - Etapas: criadas apenas se o workflow ainda não tiver etapas (`count === 0`)
 
-Isso evita duplicar etapas em reinicializações, mas também significa que alterações manuais no seed **não atualizam** etapas já existentes — é necessário recriar o banco (`./scripts/build.sh down dev --volumes`) ou editar via admin.
+Isso evita duplicar etapas em reinicializações, mas também significa que alterações manuais no seed **não atualizam** etapas já existentes — use `npm run db:reset` ou edite via admin.

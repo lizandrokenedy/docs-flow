@@ -13,9 +13,10 @@
     "docker:down": "bash scripts/build.sh down",
     "build": "turbo build",
     "lint": "turbo lint",
-    "db:migrate": "npm run migrate --workspace=@docs-flow/api",
-    "db:seed": "npm run seed --workspace=@docs-flow/api",
-    "db:generate": "npm run generate --workspace=@docs-flow/api"
+    "db:migrate": "docker compose -f docker-compose.dev.yml run --rm migrate",
+    "db:seed": "docker compose -f docker-compose.dev.yml run --rm seed",
+    "db:generate": "docker compose -f docker-compose.dev.yml run --rm migrate sh -c \"npx prisma generate --schema=prisma/schema.prisma\"",
+    "db:reset": "docker compose -f docker-compose.dev.yml down -v && docker compose -f docker-compose.dev.yml up -d postgres && sleep 3 && npm run db:migrate && npm run db:seed"
   },
   "devDependencies": {
     "prettier": "^3.5.3",

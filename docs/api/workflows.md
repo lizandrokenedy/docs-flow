@@ -17,6 +17,20 @@ Lista workflows marcados como template (`isTemplate: true`), ordenados por categ
 
 Workflow completo com etapas ordenadas por `position`.
 
+### `GET /workflows/:id/versions`
+
+Lista versões do workflow (atual + arquivadas), com resumo de alterações (`changes`) por entrada.
+
+Cada item inclui: `version`, `changeLabel`, `createdAt`, `isCurrent`, `stepCount`, `changes[]` com `{ description }`.
+
+### `GET /workflows/:id/versions/:versionNumber`
+
+Detalhe de uma versão com diff completo entre `comparedFromVersion` e `comparedToVersion`.
+
+Resposta: `version`, `changeLabel`, `createdAt`, `isCurrent`, `changes[]`, `comparedFromVersion`, `comparedToVersion`.
+
+O diff é calculado por `diffWorkflowSnapshots()` em `packages/types/src/workflow-version-diff.ts`.
+
 ### `POST /workflows`
 
 ```json
@@ -33,7 +47,7 @@ Workflow completo com etapas ordenadas por `position`.
 
 ### `POST /workflows/:id/duplicate`
 
-Duplica workflow com novo slug (sufixo `-copia`, `-copia-2`, …). Remapeia `conditionStepId` entre etapas copiadas. Cópia inicia **inativa** e não é template.
+Duplica workflow com novo slug (sufixo `-copia`, `-copia-2`, …). Remapeia `conditionStepId` entre etapas copiadas. Copia `questionType` e `questionConfig`. Cópia inicia **inativa** e não é template.
 
 Body opcional: `{ "name": "...", "slug": "..." }`.
 
@@ -47,13 +61,35 @@ Atualização parcial. Regras:
 
 - Alterar `slug` bloqueado se workflow tiver submissões
 - `isActive: true` exige pelo menos 1 etapa
-- Se `_count.submissions > 0`, incrementa `version` ao salvar
+- Com submissões existentes, **só incrementa `version`** se `isActive` for alterado
+- Alterações em `name`, `description`, `isTemplate` e `templateCategory` **não** arquivam versão
 
-Campos adicionais: `isTemplate`, `templateCategory`.
+Campos: `isTemplate`, `templateCategory`, `name`, `slug`, `description`, `isActive`.
 
 ### `DELETE /workflows/:id`
 
-Remove workflow, etapas, submissões e uploads em cascata.
+Remove workflow, etapas, submissões, versões arquivadas e uploads em cascata.
+
+## Versionamento
+
+Quando `_count.submissions > 0`, a API arquiva o snapshot atual em `workflow_versions` e incrementa `version` **antes** de aplicar alterações de fluxo, em uma única transação.
+
+**Gera nova versão:**
+
+| Operação | Quando |
+|----------|--------|
+| `PATCH /workflows/:id` | Apenas se `isActive` mudar |
+| `POST /workflows/:id/steps` | Sempre |
+| `DELETE /workflows/:id/steps/:stepId` | Sempre |
+| `PATCH /workflows/:id/steps/reorder` | Sempre |
+| `PATCH /workflows/:id/steps/:stepId` | Campos de fluxo: `documentTypeId`, `stepKind`, `questionType`, `questionConfig`, `conditionStepId`, `conditionValue`, `choiceOptions`, `isRequired`, `maxFiles`, `acceptedExtensionsOverride`, `position` |
+
+**Não gera nova versão:**
+
+- `PATCH` de etapa alterando só `title`, `instructions`, `helpText`, `exampleUrl`
+- `PATCH` do workflow alterando só nome, descrição ou metadados de template
+
+Submissões usam `workflowSnapshot` capturado na criação — independente do número de versão posterior.
 
 ## Endpoints — Etapas
 
@@ -61,31 +97,47 @@ Remove workflow, etapas, submissões e uploads em cascata.
 
 Adiciona etapa. Se `position` omitido, adiciona ao final.
 
+**Etapa DOCUMENT:**
+
 ```json
 {
   "documentTypeId": "00000000-0000-0000-0000-000000000002",
   "title": "CPF",
   "instructions": "Envie frente e verso",
-  "helpText": "Use boa iluminação",
-  "exampleUrl": "https://exemplo.com",
   "stepKind": "DOCUMENT",
-  "branchKey": "pf",
   "conditionStepId": "uuid-da-etapa-anterior",
-  "conditionValue": null,
-  "choiceOptions": [],
   "isRequired": true,
-  "maxFiles": 1,
-  "acceptedExtensionsOverride": ["pdf"]
+  "maxFiles": 1
+}
+```
+
+**Etapa QUESTION:**
+
+```json
+{
+  "title": "Tipo de cadastro",
+  "stepKind": "QUESTION",
+  "questionType": "SINGLE_CHOICE",
+  "questionConfig": {
+    "options": [
+      { "id": "pf", "label": "Pessoa Física" },
+      { "id": "pj", "label": "Pessoa Jurídica" }
+    ]
+  },
+  "choiceOptions": ["Pessoa Física", "Pessoa Jurídica"],
+  "isRequired": true
 }
 ```
 
 | Campo | Regras |
 |-------|--------|
-| `documentTypeId` | Obrigatório; formato UUID (aceita IDs fixos do seed) |
-| `stepKind` | `DOCUMENT` (padrão) ou `CHOICE` |
-| `choiceOptions` | Obrigatório ≥ 2 opções se `stepKind === CHOICE` |
+| `documentTypeId` | Obrigatório em DOCUMENT; omitido ou null em QUESTION |
+| `stepKind` | `DOCUMENT` (padrão) ou `QUESTION` |
+| `questionType` | Obrigatório se `stepKind === QUESTION`; `MULTI_CHOICE` rejeitado |
+| `questionConfig` | Validado conforme `questionType` (opções, min/max, placeholder) |
+| `choiceOptions` | Sincronizado com labels de `questionConfig.options` para tipos de lista |
 | `conditionStepId` | Deve referenciar etapa **anterior** (`position` menor) |
-| `conditionValue` | Opcional; só válido se pré-requisito for CHOICE e valor existir em `choiceOptions` |
+| `conditionValue` | Opcional; só válido se pré-requisito for QUESTION com opções e valor existente |
 
 ### `PATCH /workflows/:id/steps/reorder`
 
@@ -114,14 +166,18 @@ Reordena etapas em transação de duas fases (evita conflito na unique `workflow
 
 Atualização parcial. Mesmos campos do POST. Enviar `conditionStepId: null` remove a condicional.
 
+Ao mudar `stepKind` de DOCUMENT para QUESTION, uploads da etapa são removidos do disco e do banco.
+
 ### `DELETE /workflows/:id/steps/:stepId`
 
-Remove etapa, limpa `conditionStepId` de etapas que a referenciavam e reindexa posições.
+Remove etapa, limpa `conditionStepId` de etapas que a referenciavam, remove uploads da etapa e reindexa posições.
 
 ## Modelo de dados
 
-Veja tabelas `workflows` e `workflow_steps` em [banco-de-dados.md](../banco-de-dados.md).
+Veja tabelas `workflows`, `workflow_steps` e `workflow_versions` em [banco-de-dados.md](../banco-de-dados.md).
 
 ## Lógica compartilhada
 
-Visibilidade de etapas: `packages/types/src/workflow-logic.ts` (usado pela API e pelo wizard).
+- Visibilidade de etapas: `packages/types/src/workflow-logic.ts`
+- Diff entre versões: `packages/types/src/workflow-version-diff.ts`
+- Snapshot: `apps/api/src/workflows/workflow-snapshot.util.ts`

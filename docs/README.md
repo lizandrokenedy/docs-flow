@@ -1,8 +1,8 @@
 # Docs Flow — Documentação
 
-Sistema de coleta guiada de documentos. Permite criar **workflows** (fluxos) com etapas configuráveis — documentos, perguntas, ramificações e condicionais — e disponibilizar um link público para que usuários enviem arquivos passo a passo.
+Sistema de coleta guiada de documentos. Permite criar **workflows** (fluxos) com etapas configuráveis — documentos, perguntas com vários tipos e condicionais — e disponibilizar um link público para que usuários enviem arquivos passo a passo.
 
-**Recursos avançados:** templates, duplicação, snapshot por submissão, ClamAV. Detalhes em [visao-geral.md](./visao-geral.md) e [seed-e-exemplos.md](./seed-e-exemplos.md).
+**Recursos avançados:** templates (biblioteca com preview), duplicação, histórico de versões com diff, snapshot por submissão, ClamAV. Detalhes em [visao-geral.md](./visao-geral.md) e [seed-e-exemplos.md](./seed-e-exemplos.md).
 
 ## Índice
 
@@ -16,6 +16,7 @@ Sistema de coleta guiada de documentos. Permite criar **workflows** (fluxos) com
 - [Componentes de UI compartilhados](./componentes-ui.md)
 - [Dados de exemplo (seed)](./seed-e-exemplos.md)
 - [Roadmap e lacunas do projeto](./roadmap-e-lacunas.md)
+- [Planejamento: tipos de pergunta](./planejamento-tipos-de-pergunta.md)
 
 ### Painel Admin (`http://localhost:3001`)
 
@@ -24,6 +25,7 @@ Sistema de coleta guiada de documentos. Permite criar **workflows** (fluxos) com
 | Dashboard | [admin/dashboard.md](./admin/dashboard.md) |
 | Tipos de documento | [admin/tipos-de-documento.md](./admin/tipos-de-documento.md) |
 | Lista de workflows | [admin/workflows.md](./admin/workflows.md) |
+| Biblioteca de templates | [admin/biblioteca-templates.md](./admin/biblioteca-templates.md) |
 | Editor de workflow | [admin/editor-workflow.md](./admin/editor-workflow.md) |
 | Lista de submissões | [admin/submissoes.md](./admin/submissoes.md) |
 | Detalhe da submissão | [admin/detalhe-submissao.md](./admin/detalhe-submissao.md) |
@@ -64,4 +66,5 @@ Sistema de coleta guiada de documentos. Permite criar **workflows** (fluxos) com
 | Script | Descrição |
 |--------|-----------|
 | `./scripts/build.sh` | Ambiente Docker (dev / prod / down) |
+| `npm run db:reset` | Recria banco (volumes + migrate + seed) |
 | `./scripts/generate-eicar-test-pdf.sh` | PDF de teste EICAR para validar antivírus |

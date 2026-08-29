@@ -128,7 +128,7 @@ export function UploadReview({ steps, onEditStep }: UploadReviewProps) {
                 </List>
               ) : (
                 <Typography variant="body2" color="text.secondary">
-                  {step.isRequired ? 'Nenhum documento enviado' : 'Opcional — não enviado'}
+                  {step.isRequired ? 'Nenhum documento enviado' : 'Opcional, não enviado'}
                 </Typography>
               )}
             </CardContent>

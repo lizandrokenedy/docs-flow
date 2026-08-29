@@ -22,9 +22,17 @@ chmod +x scripts/build.sh
 ./scripts/build.sh dev
 ```
 
-Sobe: PostgreSQL, **ClamAV**, API, Admin e Web.
+Sobe: PostgreSQL, **ClamAV**, containers one-shot de **migrate** e **seed**, depois API, Admin e Web.
 
-Na subida, a API executa automaticamente `prisma generate`, migrations e seed. O serviço **ClamAV** pode levar até ~2 minutos na primeira inicialização (download das definições de vírus); a API só inicia após o healthcheck do ClamAV passar.
+Na subida, `migrate` aplica as migrations e encerra; em seguida `seed` popula dados iniciais e encerra. A API só sobe depois dos dois. O serviço **ClamAV** pode levar até ~2 minutos na primeira inicialização (download das definições de vírus).
+
+Para aplicar migrations manualmente (ex.: após `git pull`):
+
+```bash
+npm run db:migrate
+npm run db:seed   # opcional; idempotente
+npm run db:reset  # apaga volumes, migra e seeda do zero
+```
 
 ## Produção local
 

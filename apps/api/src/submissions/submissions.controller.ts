@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   Post,
   UploadedFile,
@@ -14,11 +15,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
 import { SubmissionsService } from './submissions.service';
-import {
-  CreateSubmissionDto,
-  SaveStepAnswerDto,
-  UpdateSubmissionBranchDto,
-} from './dto/submission.dto';
+import { CreateSubmissionDto, SaveStepAnswerDto } from './dto/submission.dto';
 
 @ApiTags('public')
 @Controller('public')
@@ -43,11 +40,6 @@ export class PublicSubmissionsController {
   @Patch('submissions/:id/step')
   updateStep(@Param('id') id: string, @Body('position') position: number) {
     return this.service.updateCurrentStep(id, position);
-  }
-
-  @Patch('submissions/:id/branch')
-  updateBranch(@Param('id') id: string, @Body() dto: UpdateSubmissionBranchDto) {
-    return this.service.setBranch(id, dto);
   }
 
   @Patch('submissions/:id/steps/:stepId/answer')
@@ -106,5 +98,11 @@ export class SubmissionsController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.service.findSubmission(id);
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  remove(@Param('id') id: string) {
+    return this.service.deleteSubmission(id);
   }
 }

@@ -20,15 +20,16 @@ Visualizar todos os envios de documentos feitos pelos usuários finais nos workf
 | Arquivos | Total de uploads em todas as etapas |
 | Iniciado em | Data/hora de criação |
 | Concluído em | Data/hora de finalização (vazio se em andamento) |
+| Ações | Excluir submissão (com confirmação) |
 
 ### Navegação
 
 Clique em qualquer linha para abrir o [detalhe da submissão](./detalhe-submissao.md).
 
-## Lacunas de UI (dados na API, não exibidos)
+## Lacunas de UI (dados na API, não exibidos na listagem)
 
-- Coluna **Perfil** (`branchKey`) — não presente na listagem
-- Respostas de etapas **CHOICE** — não listadas
+- Respostas de etapas QUESTION — visíveis apenas no detalhe
+- Filtros por workflow, status ou período
 
 ## Status possíveis
 
@@ -40,5 +41,6 @@ Clique em qualquer linha para abrir o [detalhe da submissão](./detalhe-submissa
 ## API utilizada
 
 - `GET /submissions`
+- `DELETE /submissions/:id`
 
 Veja também: [api/submissoes-admin.md](../api/submissoes-admin.md)

@@ -63,19 +63,20 @@ Ambos os frontends importam `@docs-flow/ui` e `@docs-flow/types`.
 
 Contratos compartilhados:
 
-- Schemas Zod e tipos TypeScript (`Workflow`, `WorkflowStep`, `Submission`, etc.)
+- Schemas Zod e tipos TypeScript (`Workflow`, `WorkflowStep`, `Submission`, `QuestionType`, etc.)
 - Utilitários: `slugify`, `formatFileSize`, `bytesToMegabytes`, `getStepAcceptedExtensions`
-- **Lógica de workflow** (`workflow-logic.ts`): `getVisibleSteps`, `isStepVisible`, `completedStepIdsFromUploads`, `getBranchOptions`, `WorkflowSnapshot`
+- **Lógica de workflow** (`workflow-logic.ts`): `getVisibleSteps`, `getStepperSteps`, `getStepLockMessage`, `isStepVisible`, `completedStepIdsFromUploads`, `validateQuestionAnswer`, `WorkflowSnapshot`
+- **Diff de versões** (`workflow-version-diff.ts`): `diffWorkflowSnapshots`, `WorkflowVersionChange`
 
-Usado pela API, web e admin para manter regras de visibilidade consistentes.
+Usado pela API, web e admin para manter regras de visibilidade e validação consistentes.
 
 ## Pacote `@docs-flow/ui`
 
-Componentes visuais reutilizados no wizard público e no preview do admin:
+Componentes visuais reutilizados no wizard público e na biblioteca de templates:
 
-- `WorkflowStepper`, `StepInstructions`, `FileDropzone`
+- `WorkflowStepper`, `StepInstructions`, `FileDropzone`, `StepCard`
 - `UploadReview`, `SuccessScreen`, `AnimatedStepPanel`
-- `ChoiceStep`, `BranchPicker`, `formatBranchLabel`
+- `QuestionStep` (wrapper por `questionType`), `ChoiceStep` (radio interno)
 - `docsFlowTheme` (tema MUI)
 
 ## API — módulos NestJS
@@ -86,7 +87,7 @@ Componentes visuais reutilizados no wizard público e no preview do admin:
 | `DocumentTypesModule` | CRUD de tipos de documento |
 | `WorkflowsModule` | CRUD de workflows e etapas |
 | `SubmissionsModule` | Submissões admin + endpoints públicos |
-| `UploadsModule` | Validação, scan antivírus e persistência de arquivos |
+| `UploadsModule` | Validação, scan antivírus, persistência e limpeza de arquivos |
 | `HealthController` | Health check |
 
 ## Persistência de arquivos
@@ -109,3 +110,5 @@ GET /uploads/{submissionId}/{stepId}/{storedName}
 - `docker-compose.yml` — build de produção local
 
 Script unificado: `./scripts/build.sh dev|prod|down`
+
+Reset completo do banco: `npm run db:reset`

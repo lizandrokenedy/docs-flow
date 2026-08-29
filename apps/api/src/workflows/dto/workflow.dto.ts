@@ -4,17 +4,31 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
+  IsObject,
   IsOptional,
   IsString,
   IsUrl,
   Matches,
   Min,
   MinLength,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
 const UUID_LIKE_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const STEP_KINDS = ['DOCUMENT', 'QUESTION'] as const;
+const QUESTION_TYPES = [
+  'SINGLE_CHOICE',
+  'SELECT',
+  'YES_NO',
+  'TEXT',
+  'TEXTAREA',
+  'NUMBER',
+  'DATE',
+  'MULTI_CHOICE',
+] as const;
 
 export class CreateWorkflowDto {
   @IsString()
@@ -71,8 +85,11 @@ export class UpdateWorkflowDto {
 }
 
 export class CreateWorkflowStepDto {
+  @IsOptional()
+  @Transform(({ value }) => (value === '' ? null : value))
+  @ValidateIf((_, value) => value !== null && value !== undefined)
   @Matches(UUID_LIKE_REGEX, { message: 'documentTypeId must be a UUID' })
-  documentTypeId!: string;
+  documentTypeId?: string | null;
 
   @IsString()
   @MinLength(1)
@@ -96,12 +113,16 @@ export class CreateWorkflowStepDto {
   position?: number;
 
   @IsOptional()
-  @IsIn(['DOCUMENT', 'CHOICE'])
-  stepKind?: 'DOCUMENT' | 'CHOICE';
+  @IsIn(STEP_KINDS)
+  stepKind?: (typeof STEP_KINDS)[number];
 
   @IsOptional()
-  @IsString()
-  branchKey?: string;
+  @IsIn(QUESTION_TYPES)
+  questionType?: (typeof QUESTION_TYPES)[number];
+
+  @IsOptional()
+  @IsObject()
+  questionConfig?: Record<string, unknown>;
 
   @IsOptional()
   @Transform(({ value }) => (value === '' ? undefined : value))
@@ -134,9 +155,10 @@ export class CreateWorkflowStepDto {
 
 export class UpdateWorkflowStepDto {
   @IsOptional()
-  @Transform(({ value }) => (value === '' ? undefined : value))
+  @Transform(({ value }) => (value === '' ? null : value))
+  @ValidateIf((_, value) => value !== null && value !== undefined)
   @Matches(UUID_LIKE_REGEX, { message: 'documentTypeId must be a UUID' })
-  documentTypeId?: string;
+  documentTypeId?: string | null;
 
   @IsOptional()
   @IsString()
@@ -161,12 +183,16 @@ export class UpdateWorkflowStepDto {
   position?: number;
 
   @IsOptional()
-  @IsIn(['DOCUMENT', 'CHOICE'])
-  stepKind?: 'DOCUMENT' | 'CHOICE';
+  @IsIn(STEP_KINDS)
+  stepKind?: (typeof STEP_KINDS)[number];
 
   @IsOptional()
-  @IsString()
-  branchKey?: string;
+  @IsIn(QUESTION_TYPES)
+  questionType?: (typeof QUESTION_TYPES)[number];
+
+  @IsOptional()
+  @IsObject()
+  questionConfig?: Record<string, unknown>;
 
   @IsOptional()
   @Transform(({ value }) => (value === '' ? null : value))

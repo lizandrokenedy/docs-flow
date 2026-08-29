@@ -1,16 +1,15 @@
 'use client';
 
 import {
-  Box,
   FormControl,
   FormControlLabel,
   FormLabel,
   Radio,
   RadioGroup,
-  Typography,
 } from '@mui/material';
 import { motion } from 'framer-motion';
-import { fadeInUp, transition } from './motion';
+import { transition } from './motion';
+import { StepCard } from './StepCard';
 
 export interface ChoiceStepProps {
   title: string;
@@ -30,15 +29,7 @@ export function ChoiceStep({
   onChange,
 }: ChoiceStepProps) {
   return (
-    <Box component={motion.div} initial="initial" animate="animate" variants={fadeInUp}>
-      <Typography variant="h5" gutterBottom>
-        {title}
-      </Typography>
-      {instructions && (
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2, whiteSpace: 'pre-wrap' }}>
-          {instructions}
-        </Typography>
-      )}
+    <StepCard title={title} instructions={instructions} helpText={helpText}>
       <FormControl component="fieldset" sx={{ width: '100%' }}>
         <FormLabel component="legend">Selecione uma opção</FormLabel>
         <RadioGroup
@@ -47,23 +38,17 @@ export function ChoiceStep({
           sx={{ mt: 1 }}
         >
           {options.map((option, index) => (
-            <Box
+            <motion.div
               key={option}
-              component={motion.div}
               initial={{ opacity: 0, x: -8 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ ...transition.fast, delay: index * 0.05 }}
             >
               <FormControlLabel value={option} control={<Radio />} label={option} />
-            </Box>
+            </motion.div>
           ))}
         </RadioGroup>
       </FormControl>
-      {helpText && (
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
-          {helpText}
-        </Typography>
-      )}
-    </Box>
+    </StepCard>
   );
 }

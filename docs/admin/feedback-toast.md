@@ -24,8 +24,9 @@ showToast('Informação', 'info');
 | Tela | Sucesso | Erro |
 |------|---------|------|
 | Tipos de documento | Criar, editar, remover | API / validação |
-| Workflows (lista) | Criar, remover, duplicar, usar template | API |
-| Editor de workflow | Salvar, steps, reordenar | API; toast de aviso se condicionais removidas na reordenação |
+| Workflows (lista) | Criar, remover, duplicar | API |
+| Biblioteca de templates | Criar workflow a partir de template | API |
+| Editor de workflow | Salvar, steps, reordenar, histórico | API; toast de aviso se condicionais removidas na reordenação |
 | Dashboard | Copiar link | Erros de query (global) |
 | Submissões | Copiar ID / link | Erros de query (global) |
 

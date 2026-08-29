@@ -1,8 +1,11 @@
 import { z } from 'zod';
+import { QuestionTypeSchema } from './question';
 
 export * from './workflow-logic';
+export * from './workflow-version-diff';
+export * from './question';
 
-export const StepKindSchema = z.enum(['DOCUMENT', 'CHOICE']);
+export const StepKindSchema = z.enum(['DOCUMENT', 'QUESTION']);
 
 export const DocumentTypeSchema = z.object({
   id: z.string().uuid(),
@@ -27,14 +30,15 @@ export const UpdateDocumentTypeSchema = CreateDocumentTypeSchema.partial();
 export const WorkflowStepSchema = z.object({
   id: z.string().uuid(),
   workflowId: z.string().uuid(),
-  documentTypeId: z.string().uuid(),
+  documentTypeId: z.string().uuid().nullable().optional(),
   title: z.string().min(1),
   instructions: z.string().nullable().optional(),
   helpText: z.string().nullable().optional(),
   exampleUrl: z.string().url().nullable().optional().or(z.literal('')),
   position: z.number().int().min(0),
   stepKind: StepKindSchema.default('DOCUMENT'),
-  branchKey: z.string().nullable().optional(),
+  questionType: QuestionTypeSchema.nullable().optional(),
+  questionConfig: z.record(z.unknown()).nullable().optional(),
   conditionStepId: z.string().uuid().nullable().optional(),
   conditionValue: z.string().nullable().optional(),
   choiceOptions: z.array(z.string()).default([]),
@@ -47,14 +51,15 @@ export const WorkflowStepSchema = z.object({
 });
 
 export const CreateWorkflowStepSchema = z.object({
-  documentTypeId: z.string().uuid(),
+  documentTypeId: z.string().uuid().nullable().optional(),
   title: z.string().min(1),
   instructions: z.string().optional(),
   helpText: z.string().optional(),
   exampleUrl: z.string().url().optional().or(z.literal('')),
   position: z.number().int().min(0).optional(),
   stepKind: StepKindSchema.optional(),
-  branchKey: z.string().optional(),
+  questionType: QuestionTypeSchema.optional(),
+  questionConfig: z.record(z.unknown()).optional(),
   conditionStepId: z.string().uuid().optional().or(z.literal('')),
   conditionValue: z.string().optional(),
   choiceOptions: z.array(z.string()).optional(),
@@ -131,7 +136,6 @@ export const SubmissionSchema = z.object({
   workflowId: z.string().uuid(),
   status: SubmissionStatusSchema,
   currentStepPosition: z.number().int().min(0),
-  branchKey: z.string().nullable().optional(),
   startedAt: z.coerce.date(),
   completedAt: z.coerce.date().nullable().optional(),
   uploads: z.array(StepUploadSchema).optional(),
@@ -162,7 +166,8 @@ export const PublicWorkflowSchema = WorkflowSchema.pick({
       exampleUrl: true,
       position: true,
       stepKind: true,
-      branchKey: true,
+      questionType: true,
+      questionConfig: true,
       conditionStepId: true,
       conditionValue: true,
       choiceOptions: true,
@@ -176,7 +181,7 @@ export const PublicWorkflowSchema = WorkflowSchema.pick({
         allowedMimeTypes: true,
         maxSizeBytes: true,
         icon: true,
-      }),
+      }).nullable().optional(),
     }),
   ),
 });

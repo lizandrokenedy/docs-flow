@@ -2,10 +2,8 @@
 
 import {
   AnimatedStepPanel,
-  BranchPicker,
-  ChoiceStep,
   FileDropzone,
-  formatBranchLabel,
+  QuestionStep,
   StepInstructions,
   SuccessScreen,
   UploadReview,
@@ -15,9 +13,15 @@ import {
 import {
   answersToMap,
   completedStepIdsFromUploads,
-  getBranchOptions,
   getStepAcceptedExtensions,
+  getStepperSteps,
+  getStepLockMessage,
   getVisibleSteps,
+  getQuestionAnswerError,
+  hasQuestionAnswer,
+  isQuestionStep,
+  type PublicWorkflow as PublicWorkflowType,
+  type QuestionType,
 } from '@docs-flow/types';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
@@ -42,15 +46,16 @@ interface WorkflowStep {
   helpText?: string;
   exampleUrl?: string;
   position: number;
-  stepKind?: 'DOCUMENT' | 'CHOICE';
-  branchKey?: string | null;
+  stepKind: 'DOCUMENT' | 'QUESTION';
+  questionType?: QuestionType | null;
+  questionConfig?: Record<string, unknown> | null;
   conditionStepId?: string | null;
   conditionValue?: string | null;
-  choiceOptions?: string[];
+  choiceOptions: string[];
   isRequired: boolean;
   maxFiles: number;
   acceptedExtensionsOverride?: string[];
-  documentType: {
+  documentType?: {
     name: string;
     allowedExtensions: string[];
     allowedMimeTypes: string[];
@@ -69,7 +74,6 @@ interface PublicWorkflow {
 interface Submission {
   id: string;
   status: string;
-  branchKey?: string | null;
   currentStepPosition: number;
   uploads: Array<{
     id: string;
@@ -117,25 +121,11 @@ export default function WorkflowWizardPage() {
     retry: false,
   });
 
-  const branchOptions = useMemo(
-    () => getBranchOptions(workflow?.steps ?? []),
-    [workflow],
-  );
-
   const createSubmissionMutation = useMutation({
-    mutationFn: (branchKey?: string) =>
-      api.post<Submission>(`/public/workflows/${slug}/submissions`, branchKey ? { branchKey } : {}),
+    mutationFn: () => api.post<Submission>(`/public/workflows/${slug}/submissions`, {}),
     onSuccess: (data) => {
       setSubmissionId(data.id);
       localStorage.setItem(`${STORAGE_PREFIX}${slug}`, data.id);
-    },
-  });
-
-  const setBranchMutation = useMutation({
-    mutationFn: (branchKey: string) =>
-      api.patch<Submission>(`/public/submissions/${submissionId}/branch`, { branchKey }),
-    onSuccess: (data) => {
-      queryClient.setQueryData(['submission', data.id], data);
     },
   });
 
@@ -156,10 +146,10 @@ export default function WorkflowWizardPage() {
   }, [slug]);
 
   useEffect(() => {
-    if (!sessionReady || submissionId || !workflow || branchOptions.length > 0) return;
-    createSubmissionMutation.mutate(undefined);
+    if (!sessionReady || submissionId || !workflow) return;
+    createSubmissionMutation.mutate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionReady, submissionId, workflow, branchOptions.length]);
+  }, [sessionReady, submissionId, workflow]);
 
   useEffect(() => {
     if (!submissionIsError || !submissionId) return;
@@ -176,9 +166,78 @@ export default function WorkflowWizardPage() {
 
   useEffect(() => {
     if (!submission || stepSynced) return;
-    setActiveStep(submission.currentStepPosition);
+    const position = Math.min(submission.currentStepPosition, getVisibleSteps(submission.workflow.steps, {
+      answers: answersToMap(submission.answers ?? []),
+      completedStepIds: completedStepIdsFromUploads(submission.uploads),
+    }).length);
+    setActiveStep(position);
     setStepSynced(true);
   }, [submission, stepSynced]);
+
+  const baseVisibilityContext = useMemo(
+    () => ({
+      answers: answersToMap(submission?.answers ?? []),
+      completedStepIds: completedStepIdsFromUploads(submission?.uploads ?? []),
+    }),
+    [submission],
+  );
+
+  const visibleSteps = useMemo(() => {
+    if (!submission) return [];
+    return getVisibleSteps(submission.workflow.steps, baseVisibilityContext);
+  }, [submission, baseVisibilityContext]);
+
+  const isReviewStep = submission ? activeStep >= visibleSteps.length : false;
+  const currentStep = visibleSteps[activeStep];
+
+  const previewVisibilityContext = useMemo(() => {
+    const answers = { ...baseVisibilityContext.answers };
+    if (currentStep && isQuestionStep(currentStep.stepKind)) {
+      if (hasQuestionAnswer(choiceValue)) {
+        answers[currentStep.id] = choiceValue.trim();
+      } else {
+        delete answers[currentStep.id];
+      }
+    }
+    return { ...baseVisibilityContext, answers };
+  }, [baseVisibilityContext, currentStep, choiceValue]);
+
+  const previewVisibleSteps = useMemo(() => {
+    if (!submission) return [];
+    return getVisibleSteps(submission.workflow.steps, previewVisibilityContext);
+  }, [submission, previewVisibilityContext]);
+
+  const stepperSteps = useMemo(() => {
+    if (!submission) return [];
+    return getStepperSteps(submission.workflow.steps, previewVisibilityContext);
+  }, [submission, previewVisibilityContext]);
+
+  const lockedStepIds = useMemo(() => {
+    const visibleIds = new Set(previewVisibleSteps.map((step) => step.id));
+    return new Set(stepperSteps.filter((step) => !visibleIds.has(step.id)).map((step) => step.id));
+  }, [stepperSteps, previewVisibleSteps]);
+
+  useEffect(() => {
+    if (!submission || visibleSteps.length === 0) return;
+    if (activeStep > visibleSteps.length) {
+      setActiveStep(visibleSteps.length);
+    }
+  }, [submission, visibleSteps.length, activeStep]);
+
+  const lockedStepMessages = useMemo(() => {
+    if (!submission) return {};
+    const allSteps = submission.workflow.steps;
+    const messages: Record<string, string> = {};
+
+    for (const stepId of lockedStepIds) {
+      const step = allSteps.find((item) => item.id === stepId);
+      if (!step) continue;
+      const message = getStepLockMessage(step, allSteps);
+      messages[stepId] = message ?? 'Libera após concluir a etapa anterior';
+    }
+
+    return messages;
+  }, [lockedStepIds, submission]);
 
   useEffect(() => {
     if (submission?.status === 'COMPLETED') {
@@ -186,17 +245,13 @@ export default function WorkflowWizardPage() {
     }
   }, [submission]);
 
-  const visibleSteps = useMemo(() => {
-    if (!submission) return [];
-    return getVisibleSteps(submission.workflow.steps, {
-      branchKey: submission.branchKey,
-      answers: answersToMap(submission.answers ?? []),
-      completedStepIds: completedStepIdsFromUploads(submission.uploads),
-    });
-  }, [submission]);
-
-  const isReviewStep = submission ? activeStep >= visibleSteps.length : false;
-  const currentStep = visibleSteps[activeStep];
+  const stepperActiveStep = useMemo(() => {
+    if (isReviewStep) return stepperSteps.length;
+    const currentId = visibleSteps[activeStep]?.id;
+    if (!currentId) return activeStep;
+    const index = stepperSteps.findIndex((step) => step.id === currentId);
+    return index >= 0 ? index : activeStep;
+  }, [activeStep, isReviewStep, stepperSteps, visibleSteps]);
 
   const getStepAnswer = useCallback(
     (stepId: string) => submission?.answers?.find((answer) => answer.workflowStepId === stepId)?.value,
@@ -204,7 +259,11 @@ export default function WorkflowWizardPage() {
   );
 
   useEffect(() => {
-    setChoiceValue(currentStep?.stepKind === 'CHOICE' ? getStepAnswer(currentStep.id) ?? '' : '');
+    setChoiceValue(
+      currentStep && isQuestionStep(currentStep.stepKind)
+        ? getStepAnswer(currentStep.id) ?? ''
+        : '',
+    );
   }, [currentStep?.id, currentStep?.stepKind, getStepAnswer]);
 
   const getStepFiles = useCallback(
@@ -250,9 +309,17 @@ export default function WorkflowWizardPage() {
   const canProceed = () => {
     if (!currentStep || !submission) return false;
 
-    if (currentStep.stepKind === 'CHOICE') {
-      if (!currentStep.isRequired) return true;
-      return Boolean(choiceValue || getStepAnswer(currentStep.id));
+    if (isQuestionStep(currentStep.stepKind)) {
+      const error = getQuestionAnswerError(
+        (currentStep.questionType ?? 'SINGLE_CHOICE') as QuestionType,
+        choiceValue,
+        {
+          choiceOptions: currentStep.choiceOptions,
+          questionConfig: currentStep.questionConfig as never,
+        },
+        currentStep.isRequired,
+      );
+      return !error;
     }
 
     const files = getStepFiles(currentStep.id);
@@ -263,17 +330,22 @@ export default function WorkflowWizardPage() {
   const handleNext = async () => {
     if (!submissionId || !currentStep) return;
 
-    if (currentStep.stepKind === 'CHOICE' && choiceValue) {
-      await api.patch(`/public/submissions/${submissionId}/steps/${currentStep.id}/answer`, {
-        value: choiceValue,
-      });
-      await queryClient.invalidateQueries({ queryKey: ['submission', submissionId] });
-    }
-
-    const nextStep = activeStep + 1;
-    await api.patch(`/public/submissions/${submissionId}/step`, { position: nextStep });
-    setActiveStep(nextStep);
     setUploadError(null);
+
+    try {
+      if (isQuestionStep(currentStep.stepKind)) {
+        await api.patch(`/public/submissions/${submissionId}/steps/${currentStep.id}/answer`, {
+          value: choiceValue.trim(),
+        });
+        await queryClient.invalidateQueries({ queryKey: ['submission', submissionId] });
+      }
+
+      const nextStep = activeStep + 1;
+      await api.patch(`/public/submissions/${submissionId}/step`, { position: nextStep });
+      setActiveStep(nextStep);
+    } catch (err) {
+      setUploadError((err as Error).message);
+    }
   };
 
   const handleBack = async () => {
@@ -292,18 +364,6 @@ export default function WorkflowWizardPage() {
     setActiveStep(stepIndex);
     setUploadError(null);
   };
-
-  const handleBranchSelect = async (branchKey: string) => {
-    if (submissionId) {
-      await setBranchMutation.mutateAsync(branchKey);
-      return;
-    }
-    await createSubmissionMutation.mutateAsync(branchKey);
-  };
-
-  const needsBranchSelection =
-    branchOptions.length > 0 &&
-    (!submissionId || (submission && !submission.branchKey));
 
   if (loadingWorkflow || !sessionReady) {
     return (
@@ -334,46 +394,16 @@ export default function WorkflowWizardPage() {
             setSubmissionId(null);
             setActiveStep(0);
             setCompleted(false);
-            if (branchOptions.length === 0) {
-              createSubmissionMutation.mutate(undefined);
-            }
+            createSubmissionMutation.mutate();
           }}
         />
       </Container>
     );
   }
 
-  if (needsBranchSelection) {
-    return (
-      <Container maxWidth="sm" sx={{ py: { xs: 2, md: 4 } }}>
-        <Typography variant="h4" gutterBottom fontWeight={700} textAlign="center">
-          {workflow.name}
-        </Typography>
-        {workflow.description && (
-          <Typography variant="body1" color="text.secondary" textAlign="center" sx={{ mb: 3 }}>
-            {workflow.description}
-          </Typography>
-        )}
-        <BranchPicker
-          options={branchOptions.map((branchKey) => ({
-            key: branchKey,
-            label: formatBranchLabel(branchKey),
-          }))}
-          onSelect={(branchKey) => void handleBranchSelect(branchKey)}
-        />
-        {(createSubmissionMutation.isError || setBranchMutation.isError) && (
-          <Alert severity="error" sx={{ mt: 2 }}>
-            {((createSubmissionMutation.error ?? setBranchMutation.error) as Error).message}
-          </Alert>
-        )}
-      </Container>
-    );
-  }
-
   if (
     (submissionId && loadingSubmission && !submissionIsError) ||
-    createSubmissionMutation.isPending ||
-    setBranchMutation.isPending
+    createSubmissionMutation.isPending
   ) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
@@ -398,11 +428,6 @@ export default function WorkflowWizardPage() {
         <Typography variant="h4" gutterBottom fontWeight={700}>
           {workflow.name}
         </Typography>
-        {submission.branchKey && (
-          <Typography variant="body2" color="primary" sx={{ mb: 1 }}>
-            Perfil: {formatBranchLabel(submission.branchKey)}
-          </Typography>
-        )}
         {workflow.description && (
           <Typography variant="body1" color="text.secondary">
             {workflow.description}
@@ -411,30 +436,34 @@ export default function WorkflowWizardPage() {
       </Box>
 
       <WorkflowStepper
-        steps={visibleSteps}
-        activeStep={isReviewStep ? visibleSteps.length : activeStep}
+        steps={stepperSteps as PublicWorkflowType['steps']}
+        activeStep={stepperActiveStep}
+        lockedStepIds={lockedStepIds}
+        lockedStepMessages={lockedStepMessages}
+        isReviewStep={isReviewStep}
       />
 
       <AnimatedStepPanel stepKey={isReviewStep ? 'review' : currentStep?.id ?? 'loading'}>
-        {!isReviewStep && currentStep?.stepKind === 'CHOICE' && (
-          <ChoiceStep
+        {!isReviewStep && currentStep && isQuestionStep(currentStep.stepKind) && (
+          <QuestionStep
             title={currentStep.title}
             instructions={currentStep.instructions}
             helpText={currentStep.helpText}
-            options={currentStep.choiceOptions ?? []}
+            questionType={currentStep.questionType as never}
+            questionConfig={currentStep.questionConfig as never}
+            choiceOptions={currentStep.choiceOptions ?? []}
             value={choiceValue}
             onChange={setChoiceValue}
           />
         )}
 
-        {!isReviewStep && currentStep && currentStep.stepKind !== 'CHOICE' && (
+        {!isReviewStep && currentStep && !isQuestionStep(currentStep.stepKind) && currentStep.documentType && (
           <>
             <StepInstructions
               title={currentStep.title}
               instructions={currentStep.instructions}
               helpText={currentStep.helpText}
               exampleUrl={currentStep.exampleUrl}
-              documentTypeName={currentStep.documentType.name}
               acceptedExtensions={getStepAcceptedExtensions({
                 acceptedExtensionsOverride: currentStep.acceptedExtensionsOverride,
                 documentType: currentStep.documentType,
@@ -466,7 +495,7 @@ export default function WorkflowWizardPage() {
         {isReviewStep && (
           <UploadReview
             steps={visibleSteps.map((step) => {
-              if (step.stepKind === 'CHOICE') {
+              if (isQuestionStep(step.stepKind)) {
                 const answer = getStepAnswer(step.id);
                 return {
                   id: step.id,

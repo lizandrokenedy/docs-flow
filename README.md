@@ -6,11 +6,11 @@ Sistema de workflow de documentos com monorepo.
 
 ## Funcionalidades principais
 
-- Workflows com etapas ordenáveis, **condicionais** (após etapa anterior preenchida), **ramificações** e perguntas **CHOICE**
+- Workflows com etapas ordenáveis, **condicionais** e **perguntas** configuráveis (escolha, texto, número, data)
 - Templates reutilizáveis e duplicação de workflows
 - Wizard público com revisão e retomada de sessão
 - Scan antivírus (ClamAV) nos uploads
-- Admin com toast, copiar link e editor visual de fluxos
+- Admin com toast, copiar link, biblioteca de templates, histórico de alterações e exclusão de submissões
 
 ## Stack
 
@@ -35,6 +35,9 @@ chmod +x scripts/build.sh
 # Derrubar
 ./scripts/build.sh down
 ./scripts/build.sh down dev --volumes   # remove volumes também
+
+# Reset rápido do banco (sem rebuild completo)
+npm run db:reset
 ```
 
 - Admin: http://localhost:3001

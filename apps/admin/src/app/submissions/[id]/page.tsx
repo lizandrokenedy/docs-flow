@@ -16,13 +16,14 @@ import {
   ListItemText,
   Typography,
 } from '@mui/material';
-import { formatFileSize } from '@docs-flow/types';
+import { formatFileSize, isQuestionStep, type StepKind } from '@docs-flow/types';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { getPublicWorkflowUrl, getUploadUrl } from '@/lib/config';
 import { CopyLinkButton } from '@/components/CopyLinkButton';
+import { DeleteSubmissionButton } from '@/components/DeleteSubmissionButton';
 import { useClipboard } from '@/hooks/useClipboard';
 
 interface SubmissionDetail {
@@ -34,8 +35,14 @@ interface SubmissionDetail {
     id: string;
     name: string;
     slug: string;
-    steps: Array<{ id: string; title: string; position: number }>;
+    steps: Array<{ id: string; title: string; position: number; stepKind?: StepKind }>;
   };
+  answers: Array<{
+    id: string;
+    workflowStepId: string;
+    value: string;
+    createdAt: string;
+  }>;
   uploads: Array<{
     id: string;
     workflowStepId: string;
@@ -98,10 +105,17 @@ export default function SubmissionDetailPage() {
             </Button>
           </Box>
         </Box>
-        <Chip
-          label={submission.status}
-          color={submission.status === 'COMPLETED' ? 'success' : 'primary'}
-        />
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+          <Chip
+            label={submission.status}
+            color={submission.status === 'COMPLETED' ? 'success' : 'primary'}
+          />
+          <DeleteSubmissionButton
+            submissionId={submission.id}
+            workflowName={submission.workflow.name}
+            redirectTo="/submissions"
+          />
+        </Box>
       </Box>
 
       <Card sx={{ mb: 3 }}>
@@ -132,30 +146,66 @@ export default function SubmissionDetailPage() {
             <strong>Finalizado:</strong>{' '}
             {submission.completedAt
               ? new Date(submission.completedAt).toLocaleString('pt-BR')
-              : '—'}
+              : '-'}
           </Typography>
           <Typography variant="body2" sx={{ mt: 1 }}>
             <strong>Total de arquivos:</strong> {submission.uploads.length}
+          </Typography>
+          <Typography variant="body2">
+            <strong>Respostas registradas:</strong> {submission.answers.length}
           </Typography>
         </CardContent>
       </Card>
 
       <Typography variant="h5" gutterBottom>
-        Documentos enviados
+        Etapas
       </Typography>
 
       {sortedSteps.map((step) => {
         const stepUploads = submission.uploads.filter((u) => u.workflowStepId === step.id);
+        const stepAnswer = submission.answers.find((answer) => answer.workflowStepId === step.id);
+        const isQuestion = isQuestionStep(step.stepKind);
 
         return (
           <Card key={step.id} sx={{ mb: 2 }}>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
-                {step.title}
-              </Typography>
-              {stepUploads.length === 0 ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <Typography variant="h6">{step.title}</Typography>
+                <Chip
+                  size="small"
+                  label={isQuestion ? 'Pergunta' : 'Documento'}
+                  variant="outlined"
+                />
+              </Box>
+
+              {isQuestion ? (
+                stepAnswer ? (
+                  <Box
+                    sx={{
+                      bgcolor: 'action.hover',
+                      borderRadius: 2,
+                      px: 2,
+                      py: 1.5,
+                    }}
+                  >
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      Resposta
+                    </Typography>
+                    <Typography variant="body1" fontWeight={600}>
+                      {stepAnswer.value}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                      Registrada em {new Date(stepAnswer.createdAt).toLocaleString('pt-BR')}
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    Nenhuma resposta registrada nesta etapa.
+                  </Typography>
+                )
+              ) : stepUploads.length === 0 ? (
                 <Typography variant="body2" color="text.secondary">
-                  Nenhum arquivo enviado neste step.
+                  Nenhum arquivo enviado nesta etapa.
                 </Typography>
               ) : (
                 <List dense disablePadding>

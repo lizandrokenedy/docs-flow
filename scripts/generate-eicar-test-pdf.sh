@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Gera um PDF de teste com a string EICAR (padrão da indústria para testar antivírus).
-# O arquivo NÃO contém malware real — apenas uma assinatura que scanners reconhecem.
+# O arquivo NÃO contém malware real, apenas uma assinatura que scanners reconhecem.
 # Uso: ./scripts/generate-eicar-test-pdf.sh [caminho-de-saida]
 #
 # Depois de gerar, envie pelo wizard público e confirme a mensagem:

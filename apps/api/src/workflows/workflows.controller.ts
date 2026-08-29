@@ -25,6 +25,19 @@ export class WorkflowsController {
     return this.service.findTemplates();
   }
 
+  @Get(':id/versions')
+  findVersions(@Param('id') id: string) {
+    return this.service.findVersions(id);
+  }
+
+  @Get(':id/versions/:versionNumber')
+  findVersion(
+    @Param('id') id: string,
+    @Param('versionNumber') versionNumber: string,
+  ) {
+    return this.service.findVersion(id, Number(versionNumber));
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.service.findOne(id);

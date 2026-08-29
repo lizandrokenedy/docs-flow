@@ -46,17 +46,35 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { StepInstructions } from '@docs-flow/ui';
-import { getStepAcceptedExtensions } from '@docs-flow/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useToast } from '@/components/ToastProvider';
 import { CopyLinkButton } from '@/components/CopyLinkButton';
+import { QuestionConfigEditor } from '@/components/QuestionConfigEditor';
+import { QuestionOptionsEditor } from '@/components/QuestionOptionsEditor';
+import { WorkflowVersionHistory } from '@/components/WorkflowVersionHistory';
 import { api } from '@/lib/api';
 import { getPublicWorkflowUrl } from '@/lib/config';
-import type { DocumentType, Workflow, WorkflowStep } from '@docs-flow/types';
+import type {
+  DocumentType,
+  QuestionConfig,
+  QuestionOption,
+  QuestionTypeV2,
+  Workflow,
+  WorkflowStep,
+} from '@docs-flow/types';
+import {
+  getChoiceOptionLabels,
+  getQuestionTypeLabel,
+  isFreeFormQuestionType,
+  isQuestionStep,
+  normalizeStepKind,
+  optionsFromLabels,
+  requiresQuestionOptions,
+  sanitizeQuestionConfig,
+} from '@docs-flow/types';
 
 interface StepForm {
   documentTypeId: string;
@@ -64,14 +82,20 @@ interface StepForm {
   instructions: string;
   helpText: string;
   exampleUrl: string;
-  stepKind: 'DOCUMENT' | 'CHOICE';
-  branchKey: string;
+  stepKind: 'DOCUMENT' | 'QUESTION';
+  questionType: QuestionTypeV2;
+  questionOptions: QuestionOption[];
+  questionConfig: QuestionConfig;
   conditionStepId: string;
-  choiceOptions: string;
   isRequired: boolean;
   maxFiles: number;
   acceptedExtensionsOverride: string;
 }
+
+const defaultQuestionOptions = (): QuestionOption[] => [
+  { id: 'opcao-1', label: 'Opção 1' },
+  { id: 'opcao-2', label: 'Opção 2' },
+];
 
 const defaultStepForm: StepForm = {
   documentTypeId: '',
@@ -80,9 +104,10 @@ const defaultStepForm: StepForm = {
   helpText: '',
   exampleUrl: '',
   stepKind: 'DOCUMENT',
-  branchKey: '',
+  questionType: 'SINGLE_CHOICE',
+  questionOptions: defaultQuestionOptions(),
+  questionConfig: {},
   conditionStepId: '',
-  choiceOptions: '',
   isRequired: true,
   maxFiles: 1,
   acceptedExtensionsOverride: '',
@@ -118,8 +143,9 @@ function SortableStepItem({
         <Box sx={{ flex: 1 }} onClick={onEdit} style={{ cursor: 'pointer' }}>
           <Typography variant="subtitle1">{step.title}</Typography>
           <Typography variant="caption" color="text.secondary">
-            {step.stepKind === 'CHOICE' ? 'Escolha' : step.documentType?.name}
-            {step.branchKey ? ` · ${step.branchKey}` : ''}
+            {isQuestionStep(step.stepKind)
+              ? `Pergunta: ${getQuestionTypeLabel(step.questionType)}`
+              : step.documentType?.name}
             {step.conditionStepId ? ' · Condicional' : ''}
             {step.isRequired ? ' · Obrigatório' : ' · Opcional'}
           </Typography>
@@ -141,7 +167,6 @@ export default function WorkflowEditorPage() {
   const [stepDialogOpen, setStepDialogOpen] = useState(false);
   const [editingStep, setEditingStep] = useState<WorkflowStep | null>(null);
   const [stepForm, setStepForm] = useState<StepForm>(defaultStepForm);
-  const [previewStepIndex, setPreviewStepIndex] = useState(0);
 
   const [generalForm, setGeneralForm] = useState({
     name: '',
@@ -156,6 +181,12 @@ export default function WorkflowEditorPage() {
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+
+  const invalidateWorkflowData = () => {
+    queryClient.invalidateQueries({ queryKey: ['workflow', workflowId] });
+    queryClient.invalidateQueries({ queryKey: ['workflow-versions', workflowId] });
+    queryClient.invalidateQueries({ queryKey: ['workflow-version', workflowId] });
+  };
 
   const { data: workflow, isLoading } = useQuery({
     queryKey: ['workflow', workflowId],
@@ -180,28 +211,61 @@ export default function WorkflowEditorPage() {
     }
   }, [workflow]);
 
+  const buildStepQuestionConfig = (data: StepForm) => {
+    if (data.stepKind !== 'QUESTION' || data.questionType === 'YES_NO') {
+      return null;
+    }
+
+    if (requiresQuestionOptions(data.questionType)) {
+      return {
+        ...data.questionConfig,
+        options: data.questionOptions.filter((option) => option.label.trim()),
+      };
+    }
+
+    if (isFreeFormQuestionType(data.questionType)) {
+      return sanitizeQuestionConfig(data.questionType, {
+        placeholder: data.questionConfig.placeholder,
+        minLength: data.questionConfig.minLength,
+        maxLength: data.questionConfig.maxLength,
+        min: data.questionConfig.min,
+        max: data.questionConfig.max,
+      });
+    }
+
+    return null;
+  };
+
   const buildStepPayload = (data: StepForm) => {
     const extensions = data.acceptedExtensionsOverride
       .split(',')
       .map((e) => e.trim().toLowerCase())
       .filter(Boolean);
+    const isQuestion = data.stepKind === 'QUESTION';
+    const optionLabels = data.questionOptions
+      .map((option) => option.label.trim())
+      .filter(Boolean);
 
     return {
-      documentTypeId: data.documentTypeId,
+      documentTypeId: isQuestion ? null : data.documentTypeId || undefined,
       title: data.title,
       instructions: data.instructions || undefined,
       helpText: data.helpText || undefined,
-      exampleUrl: data.exampleUrl || undefined,
+      exampleUrl: isQuestion ? null : data.exampleUrl || undefined,
       stepKind: data.stepKind,
-      branchKey: data.branchKey || undefined,
+      questionType: isQuestion ? data.questionType : null,
+      questionConfig: isQuestion ? buildStepQuestionConfig(data) : null,
       conditionStepId: data.conditionStepId || null,
-      choiceOptions: data.choiceOptions
-        .split(',')
-        .map((option) => option.trim())
-        .filter(Boolean),
+      choiceOptions: isQuestion
+        ? data.questionType === 'YES_NO'
+          ? ['Sim', 'Não']
+          : requiresQuestionOptions(data.questionType)
+            ? optionLabels
+            : []
+        : [],
       isRequired: data.isRequired,
-      maxFiles: data.maxFiles,
-      acceptedExtensionsOverride: extensions.length > 0 ? extensions : undefined,
+      maxFiles: isQuestion ? 1 : data.maxFiles,
+      acceptedExtensionsOverride: isQuestion ? [] : extensions.length > 0 ? extensions : undefined,
     };
   };
 
@@ -217,7 +281,7 @@ export default function WorkflowEditorPage() {
   const updateWorkflowMutation = useMutation({
     mutationFn: (data: typeof generalForm) => api.patch(`/workflows/${workflowId}`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['workflow', workflowId] });
+      invalidateWorkflowData();
       showToast('Workflow atualizado');
     },
     onError: (err: Error) => showToast(err.message, 'error'),
@@ -230,7 +294,7 @@ export default function WorkflowEditorPage() {
         position: workflow?.steps?.length ?? 0,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['workflow', workflowId] });
+      invalidateWorkflowData();
       showToast('Step adicionado');
       setStepDialogOpen(false);
       setStepForm(defaultStepForm);
@@ -242,7 +306,7 @@ export default function WorkflowEditorPage() {
     mutationFn: ({ stepId, data }: { stepId: string; data: StepForm }) =>
       api.patch(`/workflows/${workflowId}/steps/${stepId}`, buildStepPayload(data)),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['workflow', workflowId] });
+      invalidateWorkflowData();
       showToast('Step atualizado');
       setStepDialogOpen(false);
       setEditingStep(null);
@@ -254,7 +318,7 @@ export default function WorkflowEditorPage() {
   const deleteStepMutation = useMutation({
     mutationFn: (stepId: string) => api.delete(`/workflows/${workflowId}/steps/${stepId}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['workflow', workflowId] });
+      invalidateWorkflowData();
       showToast('Step removido');
     },
     onError: (err: Error) => showToast(err.message, 'error'),
@@ -264,7 +328,7 @@ export default function WorkflowEditorPage() {
     mutationFn: (steps: { id: string; position: number }[]) =>
       api.patch<{ clearedConditions?: number }>(`/workflows/${workflowId}/steps/reorder`, { steps }),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['workflow', workflowId] });
+      invalidateWorkflowData();
       if (data.clearedConditions && data.clearedConditions > 0) {
         showToast(
           `Ordem atualizada. ${data.clearedConditions} condicional(is) removida(s) por ficarem inválidas.`,
@@ -293,7 +357,7 @@ export default function WorkflowEditorPage() {
 
   const getConditionHelperText = (forPosition: number) => {
     if (forPosition === 0) {
-      return 'Primeira etapa do fluxo — sempre visível para o usuário.';
+      return 'Primeira etapa do fluxo: sempre visível para o usuário.';
     }
 
     return 'A etapa só aparece depois que a etapa selecionada for preenchida. Se você reordenar o fluxo, condicionais inválidas são removidas automaticamente.';
@@ -312,16 +376,35 @@ export default function WorkflowEditorPage() {
           : '';
 
       setEditingStep(step);
+      const questionType = (step.questionType ?? 'SINGLE_CHOICE') as QuestionTypeV2;
+      const optionLabels = getChoiceOptionLabels(step);
+      const questionOptions =
+        step.questionConfig &&
+        typeof step.questionConfig === 'object' &&
+        'options' in step.questionConfig &&
+        Array.isArray(step.questionConfig.options) &&
+        step.questionConfig.options.length > 0
+          ? (step.questionConfig.options as QuestionOption[])
+          : optionsFromLabels(optionLabels.length > 0 ? optionLabels : ['Opção 1', 'Opção 2']);
+      const questionConfig =
+        step.questionConfig && typeof step.questionConfig === 'object'
+          ? (step.questionConfig as QuestionConfig)
+          : {};
+
       setStepForm({
-        documentTypeId: step.documentTypeId || step.documentType?.id || '',
+        documentTypeId:
+          normalizeStepKind(step.stepKind) === 'QUESTION'
+            ? ''
+            : step.documentTypeId || step.documentType?.id || '',
         title: step.title,
         instructions: step.instructions || '',
         helpText: step.helpText || '',
         exampleUrl: step.exampleUrl || '',
-        stepKind: step.stepKind ?? 'DOCUMENT',
-        branchKey: step.branchKey || '',
+        stepKind: normalizeStepKind(step.stepKind),
+        questionType,
+        questionOptions: questionType === 'YES_NO' ? defaultQuestionOptions() : questionOptions,
+        questionConfig,
         conditionStepId,
-        choiceOptions: step.choiceOptions?.join(', ') || '',
         isRequired: step.isRequired,
         maxFiles: step.maxFiles,
         acceptedExtensionsOverride: step.acceptedExtensionsOverride?.join(', ') || '',
@@ -342,16 +425,17 @@ export default function WorkflowEditorPage() {
 
   const sortedSteps = [...(workflow.steps || [])].sort((a, b) => a.position - b.position);
   const editingStepPosition = editingStep?.position ?? sortedSteps.length;
+  const isQuestionForm = stepForm.stepKind === 'QUESTION';
   const hasValidDocumentType =
-    Boolean(stepForm.documentTypeId) &&
-    documentTypes.some((documentType) => documentType.id === stepForm.documentTypeId);
+    isQuestionForm ||
+    (Boolean(stepForm.documentTypeId) &&
+      documentTypes.some((documentType) => documentType.id === stepForm.documentTypeId));
   const conditionCandidateSteps = getConditionCandidateSteps(
     sortedSteps,
     editingStepPosition,
     editingStep?.id,
   );
   const conditionHelperText = getConditionHelperText(editingStepPosition);
-  const previewStep = sortedSteps[previewStepIndex];
 
   return (
     <Box>
@@ -388,7 +472,7 @@ export default function WorkflowEditorPage() {
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 3 }}>
         <Tab label="Geral" />
         <Tab label={`Steps (${sortedSteps.length})`} />
-        <Tab label="Preview" />
+        <Tab label="Histórico" />
       </Tabs>
 
       {tab === 0 && (
@@ -482,7 +566,6 @@ export default function WorkflowEditorPage() {
               variant="contained"
               startIcon={<AddIcon />}
               onClick={() => openStepDialog()}
-              disabled={documentTypes.length === 0}
             >
               Adicionar Step
             </Button>
@@ -490,7 +573,8 @@ export default function WorkflowEditorPage() {
 
           {documentTypes.length === 0 && (
             <Alert severity="info" sx={{ mb: 2 }}>
-              Cadastre tipos de documento antes de adicionar steps.
+              Cadastre tipos de documento para etapas de upload. Etapas de pergunta não precisam de
+              tipo de documento.
             </Alert>
           )}
 
@@ -520,41 +604,7 @@ export default function WorkflowEditorPage() {
         </Box>
       )}
 
-      {tab === 2 && (
-        <Box>
-          {sortedSteps.length === 0 ? (
-            <Alert severity="info">Adicione steps para visualizar o preview.</Alert>
-          ) : (
-            <Box>
-              <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-                {sortedSteps.map((step, index) => (
-                  <Chip
-                    key={step.id}
-                    label={`${index + 1}. ${step.title}`}
-                    onClick={() => setPreviewStepIndex(index)}
-                    color={previewStepIndex === index ? 'primary' : 'default'}
-                    variant={previewStepIndex === index ? 'filled' : 'outlined'}
-                  />
-                ))}
-              </Box>
-              {previewStep && (
-                <StepInstructions
-                  title={previewStep.title}
-                  instructions={previewStep.instructions}
-                  helpText={previewStep.helpText}
-                  exampleUrl={previewStep.exampleUrl}
-                  documentTypeName={previewStep.documentType?.name}
-                  acceptedExtensions={getStepAcceptedExtensions({
-                    acceptedExtensionsOverride: previewStep.acceptedExtensionsOverride,
-                    documentType: previewStep.documentType,
-                  })}
-                  maxSizeBytes={previewStep.documentType?.maxSizeBytes}
-                />
-              )}
-            </Box>
-          )}
-        </Box>
-      )}
+      {tab === 2 && <WorkflowVersionHistory workflowId={workflowId} />}
 
       <Dialog open={stepDialogOpen} onClose={() => setStepDialogOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>{editingStep ? 'Editar Step' : 'Novo Step'}</DialogTitle>
@@ -564,31 +614,85 @@ export default function WorkflowEditorPage() {
             <Select
               value={stepForm.stepKind}
               label="Tipo de etapa"
-              onChange={(e) =>
-                setStepForm({
-                  ...stepForm,
-                  stepKind: e.target.value as 'DOCUMENT' | 'CHOICE',
-                })
-              }
+              onChange={(e) => {
+                const stepKind = e.target.value as 'DOCUMENT' | 'QUESTION';
+                setStepForm((prev) => ({
+                  ...prev,
+                  stepKind,
+                  ...(stepKind === 'QUESTION'
+                    ? {
+                        documentTypeId: '',
+                        exampleUrl: '',
+                        maxFiles: 1,
+                        acceptedExtensionsOverride: '',
+                      }
+                    : {
+                        questionType: 'SINGLE_CHOICE' as QuestionTypeV2,
+                        questionOptions: defaultQuestionOptions(),
+                        questionConfig: {},
+                      }),
+                }));
+              }}
             >
               <MenuItem value="DOCUMENT">Documento</MenuItem>
-              <MenuItem value="CHOICE">Escolha (pergunta)</MenuItem>
+              <MenuItem value="QUESTION">Pergunta</MenuItem>
             </Select>
           </FormControl>
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Tipo de Documento</InputLabel>
-            <Select
-              value={stepForm.documentTypeId}
-              label="Tipo de Documento"
-              onChange={(e) => setStepForm({ ...stepForm, documentTypeId: e.target.value })}
-            >
-              {documentTypes.map((dt) => (
-                <MenuItem key={dt.id} value={dt.id}>
-                  {dt.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          {stepForm.stepKind === 'QUESTION' && (
+            <>
+              <FormControl fullWidth margin="normal">
+                <InputLabel>Tipo de pergunta</InputLabel>
+                <Select
+                  value={stepForm.questionType}
+                  label="Tipo de pergunta"
+                  onChange={(e) => {
+                    const questionType = e.target.value as QuestionTypeV2;
+                    setStepForm((prev) => ({
+                      ...prev,
+                      questionType,
+                      questionConfig:
+                        sanitizeQuestionConfig(questionType, prev.questionConfig) ?? {},
+                    }));
+                  }}
+                >
+                  <MenuItem value="SINGLE_CHOICE">Escolha única</MenuItem>
+                  <MenuItem value="SELECT">Lista suspensa</MenuItem>
+                  <MenuItem value="YES_NO">Sim / Não</MenuItem>
+                  <MenuItem value="TEXT">Texto curto</MenuItem>
+                  <MenuItem value="TEXTAREA">Texto longo</MenuItem>
+                  <MenuItem value="NUMBER">Número</MenuItem>
+                  <MenuItem value="DATE">Data</MenuItem>
+                </Select>
+              </FormControl>
+              {requiresQuestionOptions(stepForm.questionType) && (
+                <QuestionOptionsEditor
+                  options={stepForm.questionOptions}
+                  onChange={(questionOptions) => setStepForm({ ...stepForm, questionOptions })}
+                />
+              )}
+              <QuestionConfigEditor
+                questionType={stepForm.questionType}
+                config={stepForm.questionConfig}
+                onChange={(questionConfig) => setStepForm({ ...stepForm, questionConfig })}
+              />
+            </>
+          )}
+          {stepForm.stepKind === 'DOCUMENT' && (
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Tipo de Documento</InputLabel>
+              <Select
+                value={stepForm.documentTypeId}
+                label="Tipo de Documento"
+                onChange={(e) => setStepForm({ ...stepForm, documentTypeId: e.target.value })}
+              >
+                {documentTypes.map((dt) => (
+                  <MenuItem key={dt.id} value={dt.id}>
+                    {dt.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
           <TextField
             label="Título do Step"
             fullWidth
@@ -604,7 +708,11 @@ export default function WorkflowEditorPage() {
             rows={4}
             value={stepForm.instructions}
             onChange={(e) => setStepForm({ ...stepForm, instructions: e.target.value })}
-            helperText="Explique para que serve este documento e como enviá-lo"
+            helperText={
+              stepForm.stepKind === 'QUESTION'
+                ? 'Explique o contexto da pergunta para o usuário'
+                : 'Explique para que serve este documento e como enviá-lo'
+            }
           />
           <TextField
             label="Dica rápida"
@@ -613,21 +721,15 @@ export default function WorkflowEditorPage() {
             value={stepForm.helpText}
             onChange={(e) => setStepForm({ ...stepForm, helpText: e.target.value })}
           />
-          <TextField
-            label="URL de exemplo"
-            fullWidth
-            margin="normal"
-            value={stepForm.exampleUrl}
-            onChange={(e) => setStepForm({ ...stepForm, exampleUrl: e.target.value })}
-          />
-          <TextField
-            label="Ramificação (perfil)"
-            fullWidth
-            margin="normal"
-            value={stepForm.branchKey}
-            onChange={(e) => setStepForm({ ...stepForm, branchKey: e.target.value })}
-            helperText="Ex.: herdeiro, inventariante, advogado. Deixe vazio para todos os perfis."
-          />
+          {stepForm.stepKind === 'DOCUMENT' && (
+            <TextField
+              label="URL de exemplo"
+              fullWidth
+              margin="normal"
+              value={stepForm.exampleUrl}
+              onChange={(e) => setStepForm({ ...stepForm, exampleUrl: e.target.value })}
+            />
+          )}
           <FormControl fullWidth margin="normal">
             <InputLabel>Exibir somente após preencher...</InputLabel>
             <Select
@@ -649,34 +751,28 @@ export default function WorkflowEditorPage() {
             </Select>
             <FormHelperText>{conditionHelperText}</FormHelperText>
           </FormControl>
-          {stepForm.stepKind === 'CHOICE' && (
-            <TextField
-              label="Opções de escolha"
-              fullWidth
-              margin="normal"
-              value={stepForm.choiceOptions}
-              onChange={(e) => setStepForm({ ...stepForm, choiceOptions: e.target.value })}
-              helperText="Separe por vírgula. Ex.: Sim, Não"
-            />
+          {stepForm.stepKind === 'DOCUMENT' && (
+            <>
+              <TextField
+                label="Máximo de arquivos"
+                fullWidth
+                margin="normal"
+                type="number"
+                value={stepForm.maxFiles}
+                onChange={(e) => setStepForm({ ...stepForm, maxFiles: Number(e.target.value) })}
+              />
+              <TextField
+                label="Extensões aceitas (override opcional)"
+                fullWidth
+                margin="normal"
+                value={stepForm.acceptedExtensionsOverride}
+                onChange={(e) =>
+                  setStepForm({ ...stepForm, acceptedExtensionsOverride: e.target.value })
+                }
+                helperText="Deixe vazio para usar as extensões do tipo de documento. Ex: pdf, jpg"
+              />
+            </>
           )}
-          <TextField
-            label="Máximo de arquivos"
-            fullWidth
-            margin="normal"
-            type="number"
-            value={stepForm.maxFiles}
-            onChange={(e) => setStepForm({ ...stepForm, maxFiles: Number(e.target.value) })}
-          />
-          <TextField
-            label="Extensões aceitas (override opcional)"
-            fullWidth
-            margin="normal"
-            value={stepForm.acceptedExtensionsOverride}
-            onChange={(e) =>
-              setStepForm({ ...stepForm, acceptedExtensionsOverride: e.target.value })
-            }
-            helperText="Deixe vazio para usar as extensões do tipo de documento. Ex: pdf, jpg"
-          />
           <FormControlLabel
             control={
               <Switch
@@ -693,9 +789,10 @@ export default function WorkflowEditorPage() {
             variant="contained"
             disabled={
               !stepForm.title ||
-              !hasValidDocumentType ||
-              (stepForm.stepKind === 'CHOICE' &&
-                stepForm.choiceOptions.split(',').map((option) => option.trim()).filter(Boolean).length < 2)
+              (stepForm.stepKind === 'DOCUMENT' && !hasValidDocumentType) ||
+              (stepForm.stepKind === 'QUESTION' &&
+                requiresQuestionOptions(stepForm.questionType) &&
+                stepForm.questionOptions.filter((option) => option.label.trim()).length < 2)
             }
             onClick={() => {
               if (editingStep) {
