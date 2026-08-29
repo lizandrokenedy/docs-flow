@@ -21,6 +21,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
 import { useToast } from '@/components/ToastProvider';
+import { CopyLinkButton } from '@/components/CopyLinkButton';
 import { api } from '@/lib/api';
 import { getPublicWorkflowUrl } from '@/lib/config';
 import { slugify } from '@docs-flow/types';
@@ -104,22 +105,28 @@ export default function WorkflowsPage() {
     {
       field: 'actions',
       headerName: 'Ações',
-      width: 150,
+      width: 180,
       sortable: false,
       renderCell: (params) => (
-        <Box>
+        <Box onClick={(e) => e.stopPropagation()}>
           <IconButton size="small" component={Link} href={`/workflows/${params.row.id}`}>
             <EditIcon fontSize="small" />
           </IconButton>
           {params.row.isActive && (
-            <IconButton
-              size="small"
-              component={Link}
-              href={getPublicWorkflowUrl(params.row.slug)}
-              target="_blank"
-            >
-              <OpenInNewIcon fontSize="small" />
-            </IconButton>
+            <>
+              <IconButton
+                size="small"
+                component={Link}
+                href={getPublicWorkflowUrl(params.row.slug)}
+                target="_blank"
+              >
+                <OpenInNewIcon fontSize="small" />
+              </IconButton>
+              <CopyLinkButton
+                variant="icon"
+                url={getPublicWorkflowUrl(params.row.slug)}
+              />
+            </>
           )}
           <IconButton
             size="small"

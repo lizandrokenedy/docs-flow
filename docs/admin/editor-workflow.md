@@ -24,7 +24,9 @@ Configurar um workflow completo: dados gerais, etapas ordenáveis e preview do f
 - Não é possível ativar workflow sem pelo menos uma etapa
 - Aviso exibido se tentar ativar com 0 etapas
 
-**Link público:** botão para abrir `/w/{slug}` em nova aba (quando ativo).
+**Link público:** botões para abrir `/w/{slug}` em nova aba e **copiar link** (toast de confirmação), quando ativo.
+
+Feedback de ações (salvar, steps, reordenar) via **toast** (Snackbar).
 
 ### 2. Etapas
 

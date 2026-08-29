@@ -25,6 +25,7 @@ Cards com:
 - Quantidade de etapas e submissões
 - Botão **Editar** → `/workflows/{id}`
 - Botão **Abrir público** → `{NEXT_PUBLIC_WEB_URL}/w/{slug}` (somente se ativo)
+- Botão **Copiar link** → copia a URL pública e exibe toast de confirmação
 
 ### Submissões recentes
 

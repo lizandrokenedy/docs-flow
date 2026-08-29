@@ -15,6 +15,7 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { getPublicWorkflowUrl } from '@/lib/config';
+import { CopyLinkButton } from '@/components/CopyLinkButton';
 
 interface WorkflowSummary {
   id: string;
@@ -107,20 +108,23 @@ export default function DashboardPage() {
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                   {workflow.steps.length} steps · {workflow._count.submissions} submissões
                 </Typography>
-                <Box sx={{ display: 'flex', gap: 1 }}>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                   <Button component={Link} href={`/workflows/${workflow.id}`} size="small">
                     Editar
                   </Button>
                   {workflow.isActive && (
-                    <Button
-                      component={Link}
-                      href={getPublicWorkflowUrl(workflow.slug)}
-                      target="_blank"
-                      size="small"
-                      endIcon={<OpenInNewIcon />}
-                    >
-                      Abrir público
-                    </Button>
+                    <>
+                      <Button
+                        component={Link}
+                        href={getPublicWorkflowUrl(workflow.slug)}
+                        target="_blank"
+                        size="small"
+                        endIcon={<OpenInNewIcon />}
+                      >
+                        Abrir público
+                      </Button>
+                      <CopyLinkButton url={getPublicWorkflowUrl(workflow.slug)} />
+                    </>
                   )}
                 </Box>
               </CardContent>

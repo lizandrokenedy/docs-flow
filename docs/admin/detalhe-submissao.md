@@ -12,9 +12,10 @@ Inspecionar uma submissão específica: metadados, progresso e arquivos enviados
 
 ### Cabeçalho
 
-- ID da submissão
+- ID da submissão (com botão **Copiar ID** e toast de confirmação)
 - Status (chip colorido)
-- Workflow vinculado (link para o editor)
+- Workflow vinculado
+- Botões **Abrir fluxo público** e **Copiar link**
 - Datas de início e conclusão
 
 ### Arquivos por etapa

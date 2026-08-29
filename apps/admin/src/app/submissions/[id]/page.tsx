@@ -1,6 +1,7 @@
 'use client';
 
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DownloadIcon from '@mui/icons-material/Download';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import {
@@ -21,6 +22,8 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { getPublicWorkflowUrl, getUploadUrl } from '@/lib/config';
+import { CopyLinkButton } from '@/components/CopyLinkButton';
+import { useClipboard } from '@/hooks/useClipboard';
 
 interface SubmissionDetail {
   id: string;
@@ -47,6 +50,7 @@ interface SubmissionDetail {
 export default function SubmissionDetailPage() {
   const params = useParams();
   const id = params.id as string;
+  const { copyText } = useClipboard();
 
   const { data: submission, isLoading, error } = useQuery({
     queryKey: ['submission', id],
@@ -81,9 +85,18 @@ export default function SubmissionDetailPage() {
           <Typography variant="h4" gutterBottom>
             Submissão
           </Typography>
-          <Typography variant="body2" fontFamily="monospace" color="text.secondary">
-            {submission.id}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            <Typography variant="body2" fontFamily="monospace" color="text.secondary">
+              {submission.id}
+            </Typography>
+            <Button
+              size="small"
+              startIcon={<ContentCopyIcon />}
+              onClick={() => void copyText(submission.id, 'ID da submissão copiado')}
+            >
+              Copiar ID
+            </Button>
+          </Box>
         </Box>
         <Chip
           label={submission.status}
@@ -99,15 +112,18 @@ export default function SubmissionDetailPage() {
           <Typography variant="h6" gutterBottom>
             {submission.workflow.name}
           </Typography>
-          <Button
-            component={Link}
-            href={getPublicWorkflowUrl(submission.workflow.slug)}
-            target="_blank"
-            size="small"
-            endIcon={<OpenInNewIcon />}
-          >
-            Abrir fluxo público
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
+            <Button
+              component={Link}
+              href={getPublicWorkflowUrl(submission.workflow.slug)}
+              target="_blank"
+              size="small"
+              endIcon={<OpenInNewIcon />}
+            >
+              Abrir fluxo público
+            </Button>
+            <CopyLinkButton url={getPublicWorkflowUrl(submission.workflow.slug)} />
+          </Box>
           <Divider sx={{ my: 2 }} />
           <Typography variant="body2">
             <strong>Iniciado:</strong> {new Date(submission.startedAt).toLocaleString('pt-BR')}

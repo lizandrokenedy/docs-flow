@@ -16,7 +16,7 @@ O sistema cobre o ciclo básico ponta a ponta:
 8. Scan antivírus nos uploads (ClamAV no Docker, fail-closed)
 9. Stepper compacto para workflows longos (≥ 6 etapas)
 10. Retomada de sessão no wizard (`localStorage` + `currentStepPosition`)
-11. Feedback visual no admin (snackbar/toast)
+11. Feedback visual no admin (snackbar/toast em mutações, cópia de links e erros de carregamento)
 
 Para detalhes do que existe hoje, veja [visao-geral.md](./visao-geral.md).
 
@@ -118,13 +118,13 @@ Melhorias que aumentam muito o valor para escritórios, RH e operações.
 
 ### 2.2 Admin mais operacional
 
-**Situação atual:** listagem e detalhe com download de arquivos; link **Abrir público** no dashboard. Sem ferramentas de produtividade abaixo.
+**Situação atual:** listagem e detalhe com download de arquivos; link **Abrir público** e **Copiar link** no dashboard, lista de workflows, editor e detalhe da submissão (com toast). Sem ferramentas de produtividade abaixo.
 
 **O que falta:**
 
 | Feature | Descrição |
 |---------|-----------|
-| Copiar link público | Botão no dashboard e no editor para copiar `/w/{slug}` |
+| ~~Copiar link público~~ | Implementado (dashboard, workflows, editor, submissão) |
 | Filtros | Por workflow, status, período |
 | Busca | Por ID, nome do remetente (quando existir) |
 | Download em ZIP | Baixar todos os arquivos de uma submissão de uma vez |
@@ -267,7 +267,7 @@ Itens do código atual que podem ser refinados sem grandes features.
 | 3 | Identificação do remetente | Crítica | Baixo–médio | Migração DB |
 | 4 | Storage S3/MinIO | Crítica | Médio | Infra |
 | 5 | Dados no wizard / link por convite | Alta | Médio | Item 3 |
-| 6 | Admin: copiar link, filtros, ZIP | Alta | Baixo–médio | — |
+| 6 | Admin: copiar link, filtros, ZIP | Alta | Baixo–médio | Copiar link feito |
 | 7 | Retomada por e-mail | Alta | Médio | E-mail, item 3 |
 | 8 | Notificações | Alta | Médio | E-mail |
 | 9 | Testes + CI | Alta | Médio–alto | — |

@@ -19,7 +19,7 @@ Listar, criar e excluir workflows de coleta de documentos.
 | Status | Ativo ou Inativo |
 | Etapas | Quantidade de steps |
 | Submissões | Quantidade de envios recebidos |
-| Ações | Editar / Excluir |
+| Ações | Editar / Abrir público / Copiar link / Excluir |
 
 ### Criar workflow
 
@@ -37,6 +37,7 @@ O workflow é criado **inativo** e sem etapas. Após salvar, redireciona para o 
 - Confirmação obrigatória
 - Se houver submissões, exibe aviso de que uploads serão removidos em cascata
 - Remove workflow, etapas, submissões e arquivos associados
+- Toast de sucesso ou erro após a operação
 
 ## Ciclo de vida recomendado
 

@@ -25,6 +25,7 @@ Sistema de coleta guiada de documentos. Permite criar **workflows** (fluxos) com
 | Editor de workflow | [admin/editor-workflow.md](./admin/editor-workflow.md) |
 | Lista de submissões | [admin/submissoes.md](./admin/submissoes.md) |
 | Detalhe da submissão | [admin/detalhe-submissao.md](./admin/detalhe-submissao.md) |
+| Feedback visual (toast) | [admin/feedback-toast.md](./admin/feedback-toast.md) |
 
 ### Aplicação pública (`http://localhost:3000`)
 

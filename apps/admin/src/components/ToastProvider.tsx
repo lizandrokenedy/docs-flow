@@ -33,9 +33,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       <Snackbar
         open={toast.open}
-        autoHideDuration={4000}
-        onClose={() => setToast((t) => ({ ...t, open: false }))}
+        autoHideDuration={toast.severity === 'error' ? 6000 : 4000}
+        onClose={(_, reason) => {
+          if (reason === 'clickaway') return;
+          setToast((t) => ({ ...t, open: false }));
+        }}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        key={toast.message}
       >
         <Alert
           onClose={() => setToast((t) => ({ ...t, open: false }))}

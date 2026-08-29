@@ -51,6 +51,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useToast } from '@/components/ToastProvider';
+import { CopyLinkButton } from '@/components/CopyLinkButton';
 import { api } from '@/lib/api';
 import { getPublicWorkflowUrl } from '@/lib/config';
 import type { DocumentType, Workflow, WorkflowStep } from '@docs-flow/types';
@@ -281,16 +282,19 @@ export default function WorkflowEditorPage() {
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Typography variant="h4">{workflow.name}</Typography>
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
           {workflow.isActive && (
-            <Button
-              component={Link}
-              href={getPublicWorkflowUrl(workflow.slug)}
-              target="_blank"
-              endIcon={<OpenInNewIcon />}
-            >
-              Ver público
-            </Button>
+            <>
+              <Button
+                component={Link}
+                href={getPublicWorkflowUrl(workflow.slug)}
+                target="_blank"
+                endIcon={<OpenInNewIcon />}
+              >
+                Ver público
+              </Button>
+              <CopyLinkButton url={getPublicWorkflowUrl(workflow.slug)} />
+            </>
           )}
           <Button component={Link} href="/workflows" variant="outlined">
             Voltar
