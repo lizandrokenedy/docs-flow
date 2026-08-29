@@ -78,7 +78,9 @@ services:
       - /app/apps/admin/node_modules
     depends_on:
       - api
-    command: npm run dev --workspace=@docs-flow/admin
+    command: >
+      sh -c "npm run dev --workspace=@docs-flow/ui &
+             npm run dev --workspace=@docs-flow/admin"
 
   web:
     build:
@@ -96,7 +98,9 @@ services:
       - /app/apps/web/node_modules
     depends_on:
       - api
-    command: npm run dev --workspace=@docs-flow/web
+    command: >
+      sh -c "npm run dev --workspace=@docs-flow/ui &
+             npm run dev --workspace=@docs-flow/web"
 
 volumes:
   postgres_data:

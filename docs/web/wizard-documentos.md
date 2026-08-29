@@ -65,6 +65,8 @@ Componente `WorkflowStepper`:
 
 Componente `UploadReview` — resumo de todas as etapas com arquivos enviados (ou "Nenhum arquivo" em opcionais vazias).
 
+Cada etapa exibe o botão **Alterar**, que retorna ao passo correspondente para revisar, trocar ou enviar novos arquivos. A posição é sincronizada na API via `PATCH /public/submissions/{id}/step`.
+
 Botão **Finalizar envio** chama `POST /public/submissions/{id}/complete`.
 
 ### 6. Tela de sucesso

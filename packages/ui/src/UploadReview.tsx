@@ -1,9 +1,11 @@
 'use client';
 
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import {
   Box,
+  Button,
   Card,
   CardContent,
   Chip,
@@ -31,11 +33,13 @@ export interface ReviewStep {
 
 export interface UploadReviewProps {
   steps: ReviewStep[];
+  /** Volta para a etapa indicada (índice 0-based) para revisar ou alterar arquivos. */
+  onEditStep?: (stepIndex: number) => void;
 }
 
 const MotionCard = motion.create(Card);
 
-export function UploadReview({ steps }: UploadReviewProps) {
+export function UploadReview({ steps, onEditStep }: UploadReviewProps) {
   return (
     <Box
       component={motion.div}
@@ -62,7 +66,15 @@ export function UploadReview({ steps }: UploadReviewProps) {
             sx={{ mb: 2 }}
           >
             <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: { xs: 'flex-start', sm: 'center' },
+                  flexWrap: 'wrap',
+                  gap: 1,
+                  mb: 1,
+                }}
+              >
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
@@ -74,9 +86,22 @@ export function UploadReview({ steps }: UploadReviewProps) {
                     <WarningAmberIcon color="warning" fontSize="small" />
                   )}
                 </motion.div>
-                <Typography variant="h6">{step.title}</Typography>
+                <Typography variant="h6" sx={{ flex: '1 1 auto', minWidth: 0 }}>
+                  {step.title}
+                </Typography>
                 {step.isRequired && (
                   <Chip label="Obrigatório" size="small" color={hasFiles ? 'success' : 'warning'} />
+                )}
+                {onEditStep && (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<EditOutlinedIcon />}
+                    onClick={() => onEditStep(index)}
+                    sx={{ flexShrink: 0 }}
+                  >
+                    Alterar
+                  </Button>
                 )}
               </Box>
               {hasFiles ? (

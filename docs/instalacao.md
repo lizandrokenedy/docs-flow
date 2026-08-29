@@ -66,10 +66,18 @@ Flags úteis:
 
 ## Alterações em `packages/ui`
 
-No ambiente dev, os volumes montam o código-fonte. Se mudanças em `@docs-flow/ui` não aparecerem, reinicie os frontends:
+No ambiente dev, os volumes montam o código-fonte. Mudanças em `@docs-flow/ui` são recompiladas automaticamente (`tsc --watch`) nos containers web e admin.
+
+Se algo não aparecer após editar o pacote UI, reinicie os frontends:
 
 ```bash
 docker compose -f docker-compose.dev.yml restart web admin
+```
+
+Ou recompile manualmente:
+
+```bash
+npm run build --workspace=@docs-flow/ui
 ```
 
 ## Logs e troubleshooting

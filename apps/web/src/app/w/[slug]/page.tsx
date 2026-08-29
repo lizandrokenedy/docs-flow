@@ -221,6 +221,14 @@ export default function WorkflowWizardPage() {
     setUploadError(null);
   };
 
+  const handleGoToStep = async (stepIndex: number) => {
+    if (submissionId) {
+      await api.patch(`/public/submissions/${submissionId}/step`, { position: stepIndex });
+    }
+    setActiveStep(stepIndex);
+    setUploadError(null);
+  };
+
   if (
     loadingWorkflow ||
     !sessionReady ||
@@ -335,6 +343,7 @@ export default function WorkflowWizardPage() {
                 sizeBytes: f.sizeBytes,
               })),
             }))}
+            onEditStep={handleGoToStep}
           />
         )}
       </AnimatedStepPanel>
