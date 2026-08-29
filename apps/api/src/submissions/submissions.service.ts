@@ -2,16 +2,22 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { getStepAcceptedExtensions } from '@docs-flow/types';
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
+import {
+  VirusScanFailedError,
+  VirusScanService,
+} from '../uploads/virus-scan.service';
 
 @Injectable()
 export class SubmissionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly uploadsService: UploadsService,
+    private readonly virusScanService: VirusScanService,
   ) {}
 
   async findPublicWorkflow(slug: string) {
@@ -119,6 +125,18 @@ export class SubmissionsService {
       });
     } catch (error) {
       throw new BadRequestException((error as Error).message);
+    }
+
+    try {
+      await this.virusScanService.scanBuffer(file.buffer);
+    } catch (error) {
+      if (error instanceof VirusScanFailedError) {
+        if (error.code === 'UNAVAILABLE') {
+          throw new ServiceUnavailableException(error.message);
+        }
+        throw new BadRequestException(error.message);
+      }
+      throw error;
     }
 
     const upload = await this.uploadsService.saveUpload(submissionId, stepId, file);

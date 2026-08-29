@@ -34,9 +34,10 @@
 |--------|----------|
 | 200 | OK |
 | 201 | Criado |
-| 400 | Validação / regra de negócio |
+| 400 | Validação / regra de negócio (inclui malware detectado) |
 | 404 | Recurso não encontrado |
 | 409 | Conflito (ex.: slug duplicado) |
+| 503 | Serviço indisponível (ex.: ClamAV fora do ar) |
 
 ## Convenções
 

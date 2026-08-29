@@ -13,6 +13,7 @@ Sistema de coleta guiada de documentos. Permite criar **workflows** (fluxos) com
 - [Banco de dados](./banco-de-dados.md)
 - [Componentes de UI compartilhados](./componentes-ui.md)
 - [Dados de exemplo (seed)](./seed-e-exemplos.md)
+- [Roadmap e lacunas do projeto](./roadmap-e-lacunas.md)
 
 ### Painel Admin (`http://localhost:3001`)
 
@@ -53,3 +54,11 @@ Sistema de coleta guiada de documentos. Permite criar **workflows** (fluxos) com
 | API | http://localhost:4000 |
 | Swagger | http://localhost:4000/api/docs |
 | PostgreSQL | localhost:5433 |
+| ClamAV (debug) | localhost:3310 |
+
+## Scripts
+
+| Script | Descrição |
+|--------|-----------|
+| `./scripts/build.sh` | Ambiente Docker (dev / prod / down) |
+| `./scripts/generate-eicar-test-pdf.sh` | PDF de teste EICAR para validar antivírus |

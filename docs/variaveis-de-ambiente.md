@@ -18,6 +18,15 @@ Arquivo de referência: `.env.example`
 | `WEB_URL` | `http://localhost:3000` | Origem permitida no CORS (app pública) |
 | `ADMIN_URL` | `http://localhost:3001` | Origem permitida no CORS (admin) |
 
+## ClamAV (antivírus)
+
+| Variável | Padrão | Descrição |
+|----------|--------|-----------|
+| `CLAMAV_ENABLED` | `true` | Habilita scan nos uploads (`false` desliga) |
+| `CLAMAV_HOST` | `clamav` (no Compose) | Hostname do daemon `clamd` |
+| `CLAMAV_PORT` | `3310` | Porta TCP do `clamd` (exposta no host em dev para debug) |
+| `CLAMAV_TIMEOUT_MS` | `60000` | Timeout do scan em milissegundos |
+
 ## Frontends (Next.js)
 
 | Variável | Padrão | Descrição |
@@ -29,6 +38,7 @@ Arquivo de referência: `.env.example`
 
 - Variáveis `NEXT_PUBLIC_*` são embutidas no build do Next.js e expostas ao cliente.
 - Dentro do Docker Compose, a API usa `DATABASE_URL` com hostname `postgres` (rede interna dos containers).
+- `CLAMAV_HOST` é definido no Compose (`clamav`), não no `.env` — só `CLAMAV_ENABLED`, `CLAMAV_PORT` e `CLAMAV_TIMEOUT_MS` vêm do `.env`.
 - O `.env` na raiz do projeto é lido pelo Compose para portas e URLs expostas ao navegador.
 
 ## Exemplo completo
@@ -39,6 +49,10 @@ POSTGRES_PORT=5433
 
 PORT=4000
 UPLOAD_DIR=/app/uploads
+
+CLAMAV_ENABLED=true
+CLAMAV_PORT=3310
+CLAMAV_TIMEOUT_MS=60000
 
 WEB_URL=http://localhost:3000
 ADMIN_URL=http://localhost:3001

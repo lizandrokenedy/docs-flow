@@ -47,6 +47,7 @@ Componente `WorkflowStepper`:
 
 - Validação client-side: extensão e tamanho
 - Upload via XHR com barra de progresso
+- Scan antivírus no servidor (ClamAV) — arquivos maliciosos são rejeitados com mensagem de erro na UI
 - Múltiplos arquivos quando `maxFiles > 1`:
   - Contador "X de Y arquivo(s)"
   - Área de upload permanece visível até o limite

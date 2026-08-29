@@ -13,7 +13,7 @@ docs-flow/
 ├── packages/
 │   ├── types/        # Schemas Zod, tipos TS, utilitários
 │   └── ui/           # Componentes MUI compartilhados
-├── scripts/          # build.sh, common.sh
+├── scripts/          # build.sh, generate-eicar-test-pdf.sh, common.sh
 └── docs/             # Esta documentação
 ```
 
@@ -26,6 +26,7 @@ docs-flow/
 | Estado (front) | TanStack Query |
 | Validação | class-validator (API), Zod (types) |
 | Upload | Multer + disco local |
+| Antivírus | ClamAV (`clamav.client.ts`, protocolo INSTREAM) |
 | Animações | Framer Motion |
 | Drag-and-drop (admin) | @dnd-kit |
 | Documentação API | Swagger (`/api/docs`) |
@@ -47,10 +48,13 @@ docs-flow/
                  │
        ┌─────────┴─────────┐
        ▼                   ▼
-┌─────────────┐     ┌──────────────┐
-│ PostgreSQL  │     │ UPLOAD_DIR   │
-│   :5433     │     │  (volume)    │
-└─────────────┘     └──────────────┘
+┌─────────────┐     ┌──────────────┐     ┌──────────────┐
+│ PostgreSQL  │     │ UPLOAD_DIR   │     │   ClamAV     │
+│   :5433     │     │  (volume)    │     │   :3310      │
+└─────────────┘     └──────────────┘     └──────────────┘
+                                                ▲
+                                                │ scan INSTREAM
+                                                │ (antes de salvar)
 ```
 
 Ambos os frontends importam `@docs-flow/ui` e `@docs-flow/types`.
@@ -75,7 +79,7 @@ Componentes visuais reutilizados no wizard público e no preview do admin:
 | `DocumentTypesModule` | CRUD de tipos de documento |
 | `WorkflowsModule` | CRUD de workflows e etapas |
 | `SubmissionsModule` | Submissões admin + endpoints públicos |
-| `UploadsModule` | Validação e persistência de arquivos |
+| `UploadsModule` | Validação, scan antivírus e persistência de arquivos |
 | `HealthController` | Health check |
 
 ## Persistência de arquivos

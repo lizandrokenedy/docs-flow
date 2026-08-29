@@ -49,6 +49,19 @@ Upload de arquivo (`multipart/form-data`, campo `file`).
 - Tamanho ≤ `maxSizeBytes` do tipo
 - Quantidade de arquivos ≤ `maxFiles` da etapa
 - Submissão não pode estar `COMPLETED`
+- Scan antivírus (ClamAV) no buffer, antes de gravar no disco
+
+**Erros de upload (exemplos):**
+
+| HTTP | Mensagem | Causa |
+|------|----------|-------|
+| `400` | `Formato não aceito` | Extensão inválida |
+| `400` | `Arquivo muito grande. Máximo: X MB` | Excede `maxSizeBytes` |
+| `400` | `Arquivo rejeitado: possível malware detectado.` | ClamAV detectou ameaça |
+| `400` | `Não foi possível verificar o arquivo com segurança.` | Resposta inesperada do scanner |
+| `503` | `Verificação de segurança indisponível...` | ClamAV fora do ar (fail-closed) |
+
+Detalhes do scan: [uploads.md](./uploads.md#antivírus-clamav)
 
 **Resposta:**
 

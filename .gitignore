@@ -4,6 +4,9 @@ dist
 .turbo
 .env
 .env.local
-uploads
+/uploads/
+!apps/api/src/uploads/
+eicar-test.pdf
+eicar.com
 *.log
 .DS_Store

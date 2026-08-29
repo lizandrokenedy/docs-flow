@@ -22,9 +22,9 @@ chmod +x scripts/build.sh
 ./scripts/build.sh dev
 ```
 
-Sobe: PostgreSQL, API, Admin e Web.
+Sobe: PostgreSQL, **ClamAV**, API, Admin e Web.
 
-Na subida, a API executa automaticamente `prisma generate`, migrations e seed.
+Na subida, a API executa automaticamente `prisma generate`, migrations e seed. O serviço **ClamAV** pode levar até ~2 minutos na primeira inicialização (download das definições de vírus); a API só inicia após o healthcheck do ClamAV passar.
 
 ## Produção local
 
@@ -76,5 +76,29 @@ docker compose -f docker-compose.dev.yml restart web admin
 
 ```bash
 docker compose -f docker-compose.dev.yml logs -f api
+docker compose -f docker-compose.dev.yml logs -f clamav
 docker compose -f docker-compose.dev.yml ps
 ```
+
+### ClamAV lento na primeira subida
+
+O container `clamav` baixa definições de vírus na inicialização. A API só sobe depois do healthcheck passar — pode levar **1–2 minutos**. Acompanhe com `logs -f clamav`.
+
+### Testar antivírus (EICAR)
+
+Gera um PDF de teste com assinatura EICAR (padrão da indústria, sem malware real):
+
+```bash
+./scripts/generate-eicar-test-pdf.sh
+```
+
+Envie `eicar-test.pdf` em qualquer workflow público (ex.: `/w/abertura-conta`). A API deve retornar `400` com *"Arquivo rejeitado: possível malware detectado."*
+
+Mais detalhes e comandos `curl`: [api/uploads.md](./api/uploads.md#testar-o-bloqueio-eicar)
+
+## Scripts utilitários
+
+| Script | Descrição |
+|--------|-----------|
+| `./scripts/build.sh` | Sobe/para ambiente Docker (dev, prod) |
+| `./scripts/generate-eicar-test-pdf.sh` | Gera PDF de teste para validar o ClamAV |

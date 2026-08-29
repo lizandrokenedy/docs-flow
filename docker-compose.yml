@@ -15,6 +15,15 @@ services:
       timeout: 5s
       retries: 5
 
+  clamav:
+    image: clamav/clamav:stable
+    healthcheck:
+      test: ['CMD', '/usr/local/bin/clamdcheck.sh']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
   api:
     build:
       context: .
@@ -27,10 +36,16 @@ services:
       WEB_URL: ${WEB_URL:-http://localhost:3000}
       ADMIN_URL: ${ADMIN_URL:-http://localhost:3001}
       PORT: 4000
+      CLAMAV_ENABLED: ${CLAMAV_ENABLED:-true}
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: 3310
+      CLAMAV_TIMEOUT_MS: ${CLAMAV_TIMEOUT_MS:-60000}
     volumes:
       - uploads_data:/app/uploads
     depends_on:
       postgres:
+        condition: service_healthy
+      clamav:
         condition: service_healthy
     command: >
       sh -c "npx prisma migrate deploy --schema=prisma/schema.prisma &&

@@ -52,7 +52,7 @@ Uma execução do workflow por um usuário final. Armazena:
 
 ### Upload
 
-Arquivo enviado em uma etapa de uma submissão. Fica armazenado no disco (volume Docker) e referenciado no banco.
+Arquivo enviado em uma etapa de uma submissão. Antes de gravar no disco, passa por **scan antivírus** (ClamAV). Fica armazenado no volume Docker e referenciado no banco.
 
 ## Fluxo de uso (admin)
 
@@ -77,7 +77,12 @@ A sessão é salva no navegador (`localStorage`) para retomar depois.
 
 ## Limitações do MVP atual
 
+Resumo das principais lacunas. Análise completa, priorização e ordem sugerida de implementação: **[roadmap-e-lacunas.md](./roadmap-e-lacunas.md)**.
+
+- **Scan antivírus** nos uploads (ClamAV no Docker, fail-closed)
 - **Sem autenticação** no admin nem na API
+- **Sem identificação do remetente** nas submissões
 - Armazenamento de arquivos **local** (volume Docker), sem S3/MinIO
 - Sem notificações por e-mail
 - Sem exportação em lote de submissões
+- Sem testes automatizados nem CI
