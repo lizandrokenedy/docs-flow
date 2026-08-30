@@ -134,11 +134,6 @@ export class CreateWorkflowStepDto {
   conditionValue?: string;
 
   @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  choiceOptions?: string[];
-
-  @IsOptional()
   @IsBoolean()
   isRequired?: boolean;
 
@@ -202,11 +197,6 @@ export class UpdateWorkflowStepDto {
   @IsOptional()
   @IsString()
   conditionValue?: string;
-
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  choiceOptions?: string[];
 
   @IsOptional()
   @IsBoolean()

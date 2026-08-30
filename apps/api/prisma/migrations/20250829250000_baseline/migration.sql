@@ -74,7 +74,6 @@ CREATE TABLE "workflow_steps" (
     "questionConfig" JSONB,
     "conditionStepId" TEXT,
     "conditionValue" TEXT,
-    "choiceOptions" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
     "isRequired" BOOLEAN NOT NULL DEFAULT true,
     "maxFiles" INTEGER NOT NULL DEFAULT 1,
     "acceptedExtensionsOverride" TEXT[],

@@ -13,6 +13,7 @@ import {
 import {
   answersToMap,
   completedStepIdsFromUploads,
+  formatQuestionAnswerForDisplay,
   getStepAcceptedExtensions,
   getStepperSteps,
   getStepLockMessage,
@@ -20,6 +21,8 @@ import {
   getQuestionAnswerError,
   hasQuestionAnswer,
   isQuestionStep,
+  parseMultiChoiceAnswer,
+  serializeMultiChoiceAnswer,
   type PublicWorkflow as PublicWorkflowType,
   type QuestionType,
 } from '@docs-flow/types';
@@ -51,7 +54,6 @@ interface WorkflowStep {
   questionConfig?: Record<string, unknown> | null;
   conditionStepId?: string | null;
   conditionValue?: string | null;
-  choiceOptions: string[];
   isRequired: boolean;
   maxFiles: number;
   acceptedExtensionsOverride?: string[];
@@ -167,7 +169,7 @@ export default function WorkflowWizardPage() {
   useEffect(() => {
     if (!submission || stepSynced) return;
     const position = Math.min(submission.currentStepPosition, getVisibleSteps(submission.workflow.steps, {
-      answers: answersToMap(submission.answers ?? []),
+      answers: answersToMap(submission.answers ?? [], submission.workflow.steps),
       completedStepIds: completedStepIdsFromUploads(submission.uploads),
     }).length);
     setActiveStep(position);
@@ -176,7 +178,7 @@ export default function WorkflowWizardPage() {
 
   const baseVisibilityContext = useMemo(
     () => ({
-      answers: answersToMap(submission?.answers ?? []),
+      answers: answersToMap(submission?.answers ?? [], submission?.workflow.steps),
       completedStepIds: completedStepIdsFromUploads(submission?.uploads ?? []),
     }),
     [submission],
@@ -193,7 +195,14 @@ export default function WorkflowWizardPage() {
   const previewVisibilityContext = useMemo(() => {
     const answers = { ...baseVisibilityContext.answers };
     if (currentStep && isQuestionStep(currentStep.stepKind)) {
-      if (hasQuestionAnswer(choiceValue)) {
+      if (currentStep.questionType === 'MULTI_CHOICE') {
+        const selected = parseMultiChoiceAnswer(choiceValue);
+        if (selected.length > 0) {
+          answers[currentStep.id] = selected;
+        } else {
+          delete answers[currentStep.id];
+        }
+      } else if (hasQuestionAnswer(choiceValue)) {
         answers[currentStep.id] = choiceValue.trim();
       } else {
         delete answers[currentStep.id];
@@ -314,7 +323,6 @@ export default function WorkflowWizardPage() {
         (currentStep.questionType ?? 'SINGLE_CHOICE') as QuestionType,
         choiceValue,
         {
-          choiceOptions: currentStep.choiceOptions,
           questionConfig: currentStep.questionConfig as never,
         },
         currentStep.isRequired,
@@ -334,8 +342,12 @@ export default function WorkflowWizardPage() {
 
     try {
       if (isQuestionStep(currentStep.stepKind)) {
+        const answerValue =
+          currentStep.questionType === 'MULTI_CHOICE'
+            ? serializeMultiChoiceAnswer(parseMultiChoiceAnswer(choiceValue))
+            : choiceValue.trim();
         await api.patch(`/public/submissions/${submissionId}/steps/${currentStep.id}/answer`, {
-          value: choiceValue.trim(),
+          value: answerValue,
         });
         await queryClient.invalidateQueries({ queryKey: ['submission', submissionId] });
       }
@@ -451,7 +463,6 @@ export default function WorkflowWizardPage() {
             helpText={currentStep.helpText}
             questionType={currentStep.questionType as never}
             questionConfig={currentStep.questionConfig as never}
-            choiceOptions={currentStep.choiceOptions ?? []}
             value={choiceValue}
             onChange={setChoiceValue}
           />
@@ -497,12 +508,15 @@ export default function WorkflowWizardPage() {
             steps={visibleSteps.map((step) => {
               if (isQuestionStep(step.stepKind)) {
                 const answer = getStepAnswer(step.id);
+                const displayAnswer = answer
+                  ? formatQuestionAnswerForDisplay(step.questionType ?? 'SINGLE_CHOICE', answer)
+                  : '';
                 return {
                   id: step.id,
                   title: step.title,
                   isRequired: step.isRequired,
-                  files: answer
-                    ? [{ id: step.id, originalName: `Resposta: ${answer}`, sizeBytes: 0 }]
+                  files: displayAnswer
+                    ? [{ id: step.id, originalName: `Resposta: ${displayAnswer}`, sizeBytes: 0 }]
                     : [],
                 };
               }

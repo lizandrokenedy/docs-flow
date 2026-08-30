@@ -1,8 +1,10 @@
 'use client';
 
-import { Stack, TextField, Typography } from '@mui/material';
+import { Alert, Stack, TextField, Typography } from '@mui/material';
 import type { QuestionConfig, QuestionTypeV2 } from '@docs-flow/types';
 import {
+  getMultiChoiceConfigError,
+  getMultiChoiceConfigWarning,
   getQuestionTextLengthLimits,
   isFreeFormQuestionType,
   sanitizeQuestionConfig,
@@ -11,6 +13,7 @@ import {
 interface QuestionConfigEditorProps {
   questionType: QuestionTypeV2;
   config: QuestionConfig;
+  optionCount?: number;
   onChange: (config: QuestionConfig) => void;
   disabled?: boolean;
 }
@@ -18,16 +21,24 @@ interface QuestionConfigEditorProps {
 export function QuestionConfigEditor({
   questionType,
   config,
+  optionCount = 0,
   onChange,
   disabled,
 }: QuestionConfigEditorProps) {
-  if (!isFreeFormQuestionType(questionType)) {
+  if (!isFreeFormQuestionType(questionType) && questionType !== 'MULTI_CHOICE') {
     return null;
   }
 
   const textLimits =
     questionType === 'TEXT' || questionType === 'TEXTAREA'
       ? getQuestionTextLengthLimits(questionType)
+      : null;
+
+  const multiChoiceError =
+    questionType === 'MULTI_CHOICE' ? getMultiChoiceConfigError(config, optionCount) : null;
+  const multiChoiceWarning =
+    questionType === 'MULTI_CHOICE' && !multiChoiceError
+      ? getMultiChoiceConfigWarning(config, optionCount)
       : null;
 
   const update = (patch: Partial<QuestionConfig>) => {
@@ -40,7 +51,15 @@ export function QuestionConfigEditor({
     ) {
       next.max = next.min;
     }
-    onChange(sanitizeQuestionConfig(questionType, next) ?? next);
+    if (
+      questionType === 'MULTI_CHOICE' &&
+      next.minSelections !== undefined &&
+      next.maxSelections !== undefined &&
+      next.minSelections > next.maxSelections
+    ) {
+      next.maxSelections = next.minSelections;
+    }
+    onChange(sanitizeQuestionConfig(questionType, next, optionCount) ?? next);
   };
 
   return (
@@ -121,6 +140,55 @@ export function QuestionConfigEditor({
             onChange={(event) =>
               update({
                 max: event.target.value === '' ? undefined : Number(event.target.value),
+              })
+            }
+          />
+        </>
+      )}
+
+      {questionType === 'MULTI_CHOICE' && (
+        <>
+          <Typography variant="caption" color="text.secondary">
+            Defina quantas opções o usuário pode marcar. Deixe em branco para não limitar.
+            {optionCount >= 2 && ` Há ${optionCount} opções cadastradas.`}
+          </Typography>
+          {multiChoiceError && <Alert severity="error">{multiChoiceError}</Alert>}
+          {multiChoiceWarning && <Alert severity="warning">{multiChoiceWarning}</Alert>}
+          <TextField
+            fullWidth
+            size="small"
+            type="number"
+            label="Mínimo de seleções"
+            value={config.minSelections ?? ''}
+            disabled={disabled}
+            error={!!multiChoiceError}
+            helperText={
+              optionCount >= 2 ? `De 0 a ${optionCount}` : 'Informe ao menos 2 opções acima'
+            }
+            inputProps={{ min: 0, max: optionCount >= 2 ? optionCount : undefined }}
+            onChange={(event) =>
+              update({
+                minSelections:
+                  event.target.value === '' ? undefined : Number(event.target.value),
+              })
+            }
+          />
+          <TextField
+            fullWidth
+            size="small"
+            type="number"
+            label="Máximo de seleções"
+            value={config.maxSelections ?? ''}
+            disabled={disabled}
+            error={!!multiChoiceError}
+            helperText={
+              optionCount >= 2 ? `De 1 a ${optionCount}` : 'Informe ao menos 2 opções acima'
+            }
+            inputProps={{ min: 1, max: optionCount >= 2 ? optionCount : undefined }}
+            onChange={(event) =>
+              update({
+                maxSelections:
+                  event.target.value === '' ? undefined : Number(event.target.value),
               })
             }
           />

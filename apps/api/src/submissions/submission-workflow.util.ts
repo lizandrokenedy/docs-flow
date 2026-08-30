@@ -33,12 +33,15 @@ export function resolveSubmissionWorkflow<
   };
 }
 
-export function getSubmissionContext(submission: {
-  answers?: Array<{ workflowStepId: string; value: string }>;
-  uploads?: Array<{ workflowStepId: string }>;
-}) {
+export function getSubmissionContext(
+  submission: {
+    answers?: Array<{ workflowStepId: string; value: string }>;
+    uploads?: Array<{ workflowStepId: string }>;
+  },
+  steps?: Array<{ id: string; questionType?: string | null }>,
+) {
   return {
-    answers: answersToMap(submission.answers ?? []),
+    answers: answersToMap(submission.answers ?? [], steps),
     completedStepIds: completedStepIdsFromUploads(submission.uploads ?? []),
   };
 }
@@ -58,6 +61,6 @@ export function getSubmissionVisibleSteps<
 
   return getVisibleSteps(
     workflow.steps as WorkflowWithSteps['steps'],
-    getSubmissionContext(submission),
+    getSubmissionContext(submission, workflow.steps),
   );
 }

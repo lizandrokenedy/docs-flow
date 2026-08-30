@@ -103,6 +103,7 @@ Wrapper que renderiza o input conforme `questionType`:
 |------|-------------------|
 | `SINGLE_CHOICE`, `YES_NO` | `ChoiceStep` (radio) |
 | `SELECT` | MUI Select |
+| `MULTI_CHOICE` | Checkboxes com limite min/max de seleções |
 | `TEXT`, `TEXTAREA` | TextField |
 | `NUMBER` | TextField type number |
 | `DATE` | TextField type date |

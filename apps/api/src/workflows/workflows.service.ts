@@ -7,6 +7,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { diffWorkflowSnapshots, type WorkflowSnapshot } from '@docs-flow/types';
 import {
+  countQuestionOptions,
   getChoiceOptionLabels,
   isQuestionStep,
   normalizeQuestionStepInput,
@@ -119,26 +120,120 @@ export class WorkflowsService {
     return workflow;
   }
 
-  private isFlowAffectingWorkflowUpdate(dto: UpdateWorkflowDto) {
-    return dto.isActive !== undefined;
+  private isFlowAffectingWorkflowUpdate(
+    dto: UpdateWorkflowDto,
+    existing: { isActive: boolean },
+  ): boolean {
+    return dto.isActive !== undefined && dto.isActive !== existing.isActive;
   }
 
-  private isFlowAffectingStepUpdate(dto: UpdateWorkflowStepDto) {
-    const flowFields: (keyof UpdateWorkflowStepDto)[] = [
-      'documentTypeId',
-      'stepKind',
-      'questionType',
-      'questionConfig',
-      'conditionStepId',
-      'conditionValue',
-      'choiceOptions',
-      'isRequired',
-      'maxFiles',
-      'acceptedExtensionsOverride',
-      'position',
-    ];
+  private normalizeQuestionConfigForCompare(
+    questionType: string | null,
+    value: unknown,
+  ): string {
+    if (value === undefined || value === null) {
+      return 'null';
+    }
 
-    return flowFields.some((field) => dto[field] !== undefined);
+    const parsed = QuestionConfigSchema.safeParse(value);
+    if (!parsed.success) {
+      return JSON.stringify(value);
+    }
+
+    const sanitized = sanitizeQuestionConfig(
+      (questionType ?? 'TEXT') as never,
+      parsed.data,
+      countQuestionOptions(parsed.data),
+    );
+
+    return JSON.stringify(sanitized ?? null);
+  }
+
+  private normalizeExtensionsForCompare(value: string[] | null | undefined): string {
+    return JSON.stringify([...(value ?? [])].sort());
+  }
+
+  private isFlowAffectingStepUpdate(
+    dto: UpdateWorkflowStepDto,
+    existing: {
+      stepKind: string;
+      questionType: string | null;
+      questionConfig: unknown;
+      documentTypeId: string | null;
+      conditionStepId: string | null;
+      conditionValue: string | null;
+      isRequired: boolean;
+      maxFiles: number;
+      acceptedExtensionsOverride: string[];
+      position: number;
+    },
+  ): boolean {
+    const nextQuestionType =
+      dto.questionType !== undefined ? dto.questionType ?? null : existing.questionType;
+
+    if (dto.documentTypeId !== undefined && dto.documentTypeId !== existing.documentTypeId) {
+      return true;
+    }
+
+    if (
+      dto.stepKind !== undefined &&
+      normalizeStepKind(dto.stepKind) !== normalizeStepKind(existing.stepKind as StepKindInput)
+    ) {
+      return true;
+    }
+
+    if (dto.questionType !== undefined && (dto.questionType ?? null) !== existing.questionType) {
+      return true;
+    }
+
+    if (dto.questionConfig !== undefined) {
+      const before = this.normalizeQuestionConfigForCompare(
+        existing.questionType,
+        existing.questionConfig,
+      );
+      const after = this.normalizeQuestionConfigForCompare(nextQuestionType, dto.questionConfig);
+      if (before !== after) {
+        return true;
+      }
+    }
+
+    if (
+      dto.conditionStepId !== undefined &&
+      (dto.conditionStepId ?? null) !== existing.conditionStepId
+    ) {
+      return true;
+    }
+
+    if (dto.conditionValue !== undefined) {
+      const nextValue = dto.conditionValue?.trim() || null;
+      const prevValue = existing.conditionValue?.trim() || null;
+      if (nextValue !== prevValue) {
+        return true;
+      }
+    }
+
+    if (dto.isRequired !== undefined && dto.isRequired !== existing.isRequired) {
+      return true;
+    }
+
+    if (dto.maxFiles !== undefined && dto.maxFiles !== existing.maxFiles) {
+      return true;
+    }
+
+    if (dto.acceptedExtensionsOverride !== undefined) {
+      if (
+        this.normalizeExtensionsForCompare(dto.acceptedExtensionsOverride) !==
+        this.normalizeExtensionsForCompare(existing.acceptedExtensionsOverride)
+      ) {
+        return true;
+      }
+    }
+
+    if (dto.position !== undefined && dto.position !== existing.position) {
+      return true;
+    }
+
+    return false;
   }
 
   private parseQuestionConfig(
@@ -158,10 +253,11 @@ export class WorkflowsService {
       return parsed.data;
     }
 
-    const sanitized = sanitizeQuestionConfig(questionType as never, parsed.data);
+    const optionCount = countQuestionOptions(parsed.data);
+    const sanitized = sanitizeQuestionConfig(questionType as never, parsed.data, optionCount);
 
     try {
-      assertQuestionConfigForType(questionType as never, sanitized);
+      assertQuestionConfigForType(questionType as never, sanitized, optionCount);
     } catch (error) {
       if (error instanceof QuestionConfigValidationError) {
         throw new BadRequestException(error.message);
@@ -177,7 +273,6 @@ export class WorkflowsService {
       stepKind: StepKindInput;
       questionType: string | null;
       questionConfig: unknown;
-      choiceOptions: string[];
     },
     dto: CreateWorkflowStepDto | UpdateWorkflowStepDto,
   ) {
@@ -191,7 +286,6 @@ export class WorkflowsService {
               dto.questionType ?? existing.questionType,
             )
           : this.parseQuestionConfig(existing.questionConfig, existing.questionType),
-      choiceOptions: dto.choiceOptions ?? existing.choiceOptions,
     });
   }
 
@@ -202,7 +296,7 @@ export class WorkflowsService {
 
     if (
       requiresQuestionOptions(normalized.questionType) &&
-      normalized.choiceOptions.length < 2
+      countQuestionOptions(normalized.questionConfig) < 2
     ) {
       throw new BadRequestException('Perguntas com opções precisam de ao menos 2 alternativas');
     }
@@ -211,7 +305,11 @@ export class WorkflowsService {
       if (!isImplementedQuestionType(normalized.questionType)) {
         throw new BadRequestException('Múltipla escolha ainda não está disponível');
       }
-      assertQuestionConfigForType(normalized.questionType, normalized.questionConfig);
+      assertQuestionConfigForType(
+        normalized.questionType,
+        normalized.questionConfig,
+        countQuestionOptions(normalized.questionConfig),
+      );
     }
   }
 
@@ -237,7 +335,6 @@ export class WorkflowsService {
         stepKind: 'QUESTION',
         questionType: normalized.questionType,
         questionConfig: normalized.questionConfig as Prisma.InputJsonValue,
-        choiceOptions: normalized.choiceOptions,
         documentTypeId: null,
         exampleUrl: null,
         maxFiles: 1,
@@ -249,7 +346,6 @@ export class WorkflowsService {
       stepKind: 'DOCUMENT',
       questionType: null,
       questionConfig: Prisma.DbNull,
-      choiceOptions: [],
       documentTypeId: dto.documentTypeId ?? null,
       exampleUrl: dto.exampleUrl === undefined ? undefined : dto.exampleUrl || null,
       maxFiles: dto.maxFiles,
@@ -472,7 +568,7 @@ export class WorkflowsService {
       throw new BadRequestException('Adicione ao menos um step antes de ativar o workflow');
     }
 
-    if (!this.isFlowAffectingWorkflowUpdate(dto)) {
+    if (!this.isFlowAffectingWorkflowUpdate(dto, workflow)) {
       return this.prisma.workflow.update({
         where: { id },
         data: dto,
@@ -539,7 +635,6 @@ export class WorkflowsService {
             questionConfig: step.questionConfig as Prisma.InputJsonValue,
             conditionStepId: null,
             conditionValue: step.conditionValue,
-            choiceOptions: step.choiceOptions,
             isRequired: step.isRequired,
             maxFiles: step.maxFiles,
             acceptedExtensionsOverride: step.acceptedExtensionsOverride,
@@ -619,7 +714,6 @@ export class WorkflowsService {
       }
 
       const optionLabels = getChoiceOptionLabels({
-        choiceOptions: conditionStep.choiceOptions,
         questionConfig: conditionStep.questionConfig as QuestionConfig | null,
       });
 
@@ -634,6 +728,7 @@ export class WorkflowsService {
   private buildStepUpdateData(
     dto: UpdateWorkflowStepDto,
     normalized?: ReturnType<typeof normalizeQuestionStepInput>,
+    existingQuestionType?: string | null,
   ): Prisma.WorkflowStepUncheckedUpdateInput {
     const data: Prisma.WorkflowStepUncheckedUpdateInput = {};
 
@@ -655,12 +750,11 @@ export class WorkflowsService {
     if (dto.documentTypeId !== undefined) data.documentTypeId = dto.documentTypeId;
     if (dto.exampleUrl !== undefined) data.exampleUrl = dto.exampleUrl || null;
     if (dto.stepKind !== undefined) data.stepKind = dto.stepKind;
-    if (dto.choiceOptions !== undefined) data.choiceOptions = dto.choiceOptions;
     if (dto.questionType !== undefined) data.questionType = dto.questionType;
     if (dto.questionConfig !== undefined) {
       data.questionConfig = this.parseQuestionConfig(
         dto.questionConfig,
-        dto.questionType,
+        dto.questionType ?? existingQuestionType,
       ) as Prisma.InputJsonValue;
     }
     if (dto.maxFiles !== undefined) data.maxFiles = dto.maxFiles;
@@ -695,7 +789,6 @@ export class WorkflowsService {
         stepKind: dto.stepKind ?? 'DOCUMENT',
         questionType: dto.questionType ?? null,
         questionConfig: dto.questionConfig ?? null,
-        choiceOptions: dto.choiceOptions ?? [],
       },
       dto,
     );
@@ -735,9 +828,9 @@ export class WorkflowsService {
     const normalized = this.resolveNormalizedStepFields(step, dto);
     const appliesStepKindPersistence = dto.stepKind !== undefined;
 
-    if (appliesStepKindPersistence) {
-      this.assertQuestionStepIsValid(normalized);
-      this.assertDocumentStepIsValid(normalized, dto.documentTypeId);
+    this.assertQuestionStepIsValid(normalized);
+    if (normalized.stepKind === 'DOCUMENT') {
+      this.assertDocumentStepIsValid(normalized, dto.documentTypeId ?? step.documentTypeId);
     }
 
     const previousKind = step.stepKind as StepKindInput;
@@ -758,6 +851,7 @@ export class WorkflowsService {
     const updateData = this.buildStepUpdateData(
       dto,
       appliesStepKindPersistence ? normalized : undefined,
+      step.questionType,
     );
 
     const kindChanged =
@@ -776,15 +870,32 @@ export class WorkflowsService {
       });
     };
 
-    if (!this.isFlowAffectingStepUpdate(dto)) {
+    if (
+      !this.isFlowAffectingStepUpdate(dto, {
+        stepKind: step.stepKind,
+        questionType: step.questionType,
+        questionConfig: step.questionConfig,
+        documentTypeId: step.documentTypeId,
+        conditionStepId: step.conditionStepId,
+        conditionValue: step.conditionValue,
+        isRequired: step.isRequired,
+        maxFiles: step.maxFiles,
+        acceptedExtensionsOverride: step.acceptedExtensionsOverride,
+        position: step.position,
+      })
+    ) {
       return applyUpdate(this.prisma);
     }
 
-    const changeLabel =
-      dto.conditionStepId !== undefined ||
-      dto.conditionValue !== undefined
-        ? `Condições da etapa "${step.title}" alteradas`
-        : `Fluxo da etapa "${step.title}" alterado`;
+    const conditionChanged =
+      (dto.conditionStepId !== undefined &&
+        (dto.conditionStepId ?? null) !== step.conditionStepId) ||
+      (dto.conditionValue !== undefined &&
+        (dto.conditionValue?.trim() || null) !== (step.conditionValue?.trim() || null));
+
+    const changeLabel = conditionChanged
+      ? `Condições da etapa "${step.title}" alteradas`
+      : `Fluxo da etapa "${step.title}" alterado`;
 
     return this.withVersionArchive(workflowId, changeLabel, applyUpdate);
   }

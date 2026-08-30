@@ -83,7 +83,6 @@ model WorkflowStep {
   questionConfig             Json?
   conditionStepId            String?
   conditionValue             String?
-  choiceOptions              String[]
   isRequired                 Boolean            @default(true)
   maxFiles                   Int                @default(1)
   acceptedExtensionsOverride String[]

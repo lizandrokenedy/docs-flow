@@ -16,7 +16,13 @@ import {
   ListItemText,
   Typography,
 } from '@mui/material';
-import { formatFileSize, isQuestionStep, type StepKind } from '@docs-flow/types';
+import {
+  formatFileSize,
+  formatQuestionAnswerForDisplay,
+  isQuestionStep,
+  type QuestionType,
+  type StepKind,
+} from '@docs-flow/types';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -35,7 +41,13 @@ interface SubmissionDetail {
     id: string;
     name: string;
     slug: string;
-    steps: Array<{ id: string; title: string; position: number; stepKind?: StepKind }>;
+    steps: Array<{
+      id: string;
+      title: string;
+      position: number;
+      stepKind?: StepKind;
+      questionType?: QuestionType | null;
+    }>;
   };
   answers: Array<{
     id: string;
@@ -192,7 +204,10 @@ export default function SubmissionDetailPage() {
                       Resposta
                     </Typography>
                     <Typography variant="body1" fontWeight={600}>
-                      {stepAnswer.value}
+                      {formatQuestionAnswerForDisplay(
+                        (step.questionType ?? 'SINGLE_CHOICE') as QuestionType,
+                        stepAnswer.value,
+                      )}
                     </Typography>
                     <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
                       Registrada em {new Date(stepAnswer.createdAt).toLocaleString('pt-BR')}

@@ -1,7 +1,7 @@
 # Banco de dados
 
 **Schema:** `apps/api/prisma/schema.prisma`  
-**Migration:** `apps/api/prisma/migrations/20250829250000_baseline/`
+**Migrations:** `apps/api/prisma/migrations/20250829250000_baseline/` (schema único, sem histórico de migrações incrementais)
 
 ## Diagrama de relacionamentos
 
@@ -34,7 +34,7 @@ DocumentType ──< WorkflowStep >── Workflow ──< Submission ──< St
 | `TEXTAREA` | Texto longo (máx. 5.000 caracteres) |
 | `NUMBER` | Numérico com min/max opcionais |
 | `DATE` | Data ISO (`YYYY-MM-DD`) |
-| `MULTI_CHOICE` | No schema; **bloqueado** na API até Fase 5 |
+| `MULTI_CHOICE` | Checkbox; resposta armazenada como JSON `["opção"]` em `value` |
 
 ### `SubmissionStatus`
 
@@ -104,10 +104,9 @@ Arquivo de snapshots por versão (quando o workflow com submissões é alterado)
 | position | int | Ordem (único por workflow) |
 | stepKind | StepKind | Padrão: `DOCUMENT` |
 | questionType | QuestionType? | Obrigatório quando `stepKind === QUESTION` |
-| questionConfig | JSON? | Opções, placeholder, min/max, etc. |
+| questionConfig | JSON? | Opções (`options[]`), placeholder, min/max, limites de seleção |
 | conditionStepId | string? | ID de etapa anterior que deve estar preenchida |
-| conditionValue | string? | Opcional — exige resposta exata em pré-requisito QUESTION |
-| choiceOptions | string[] | Labels das opções (sincronizado com `questionConfig.options`; depreciar depois) |
+| conditionValue | string? | Opcional — match exato em escolha única; inclusão da opção em MULTI_CHOICE |
 | isRequired | boolean | Padrão: true |
 | maxFiles | int | Padrão: 1 |
 | acceptedExtensionsOverride | string[] | Override de extensões |
@@ -115,7 +114,7 @@ Arquivo de snapshots por versão (quando o workflow com submissões é alterado)
 
 **Índice único:** `(workflowId, position)`
 
-**Regras de condicional (API):** `conditionStepId` deve apontar para etapa com `position` menor. `conditionValue` só é válido se o pré-requisito for QUESTION com opções e o valor existir nelas.
+**Regras de condicional (API):** `conditionStepId` deve apontar para etapa com `position` menor. `conditionValue` só é válido se o pré-requisito for QUESTION com opções e o valor existir nelas (em `MULTI_CHOICE`, a condição verifica se a opção está entre as selecionadas).
 
 ### `submissions`
 
@@ -136,7 +135,7 @@ Arquivo de snapshots por versão (quando o workflow com submissões é alterado)
 | id | UUID | PK |
 | submissionId | UUID | FK → submissions (CASCADE) |
 | workflowStepId | UUID | FK → workflow_steps (CASCADE) |
-| value | string | Resposta da etapa QUESTION |
+| value | string | Resposta da etapa QUESTION (`MULTI_CHOICE` usa JSON stringificado, ex. `["Opção A"]`) |
 | createdAt, updatedAt | datetime | Auditoria |
 
 **Índice único:** `(submissionId, workflowStepId)`

@@ -65,7 +65,8 @@ Contratos compartilhados:
 
 - Schemas Zod e tipos TypeScript (`Workflow`, `WorkflowStep`, `Submission`, `QuestionType`, etc.)
 - Utilitários: `slugify`, `formatFileSize`, `bytesToMegabytes`, `getStepAcceptedExtensions`
-- **Lógica de workflow** (`workflow-logic.ts`): `getVisibleSteps`, `getStepperSteps`, `getStepLockMessage`, `isStepVisible`, `completedStepIdsFromUploads`, `validateQuestionAnswer`, `WorkflowSnapshot`
+- **Lógica de workflow** (`workflow-logic.ts`): `getVisibleSteps`, `getStepperSteps`, `getStepLockMessage`, `isStepVisible`, `completedStepIdsFromUploads`, `WorkflowSnapshot`
+- **Tipos de pergunta** (`question.ts`): `QuestionType`, `validateQuestionAnswer`, `sanitizeQuestionConfig`, `getMultiChoiceConfigError`, etc.
 - **Diff de versões** (`workflow-version-diff.ts`): `diffWorkflowSnapshots`, `WorkflowVersionChange`
 
 Usado pela API, web e admin para manter regras de visibilidade e validação consistentes.

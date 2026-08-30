@@ -27,6 +27,10 @@ function describeCondition(step: SnapshotStep, snapshot: WorkflowSnapshot) {
   const prerequisiteLabel = prerequisite ? stepLabel(prerequisite) : 'etapa desconhecida';
 
   if (step.conditionValue) {
+    if (prerequisite?.questionType === 'MULTI_CHOICE') {
+      return `Após incluir "${step.conditionValue}" em ${prerequisiteLabel}`;
+    }
+
     return `Após responder "${step.conditionValue}" em ${prerequisiteLabel}`;
   }
 
@@ -145,6 +149,25 @@ export function diffWorkflowSnapshots(
         changes,
         `${label}: opções de pergunta alteradas ${fromTo(beforeOptions, afterOptions)}`,
       );
+    }
+
+    const beforeConfig = (beforeStep.questionConfig ?? {}) as Record<string, unknown>;
+    const afterConfig = (afterStep.questionConfig ?? {}) as Record<string, unknown>;
+    if (afterStep.questionType === 'MULTI_CHOICE') {
+      const beforeMin = beforeConfig.minSelections ?? '—';
+      const afterMin = afterConfig.minSelections ?? '—';
+      const beforeMax = beforeConfig.maxSelections ?? '—';
+      const afterMax = afterConfig.maxSelections ?? '—';
+
+      if (beforeMin !== afterMin || beforeMax !== afterMax) {
+        pushChange(
+          changes,
+          `${label}: limites de seleção alterados ${fromTo(
+            `${beforeMin}–${beforeMax}`,
+            `${afterMin}–${afterMax}`,
+          )}`,
+        );
+      }
     }
 
     if (beforeStep.maxFiles !== afterStep.maxFiles) {

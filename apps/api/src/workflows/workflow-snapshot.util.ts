@@ -19,7 +19,6 @@ export type WorkflowWithStepsForSnapshot = {
     questionConfig: unknown;
     conditionStepId: string | null;
     conditionValue: string | null;
-    choiceOptions: string[];
     isRequired: boolean;
     maxFiles: number;
     acceptedExtensionsOverride: string[];
@@ -54,7 +53,6 @@ export function buildWorkflowSnapshot(workflow: WorkflowWithStepsForSnapshot): W
       questionConfig: step.questionConfig as WorkflowSnapshot['steps'][number]['questionConfig'],
       conditionStepId: step.conditionStepId,
       conditionValue: step.conditionValue,
-      choiceOptions: step.choiceOptions,
       isRequired: step.isRequired,
       maxFiles: step.maxFiles,
       acceptedExtensionsOverride: step.acceptedExtensionsOverride,

@@ -40,7 +40,7 @@ O wizard navega apenas pelas etapas **visíveis** para o progresso atual (`getVi
 | Filtro | Regra |
 |--------|-------|
 | Condicional | Etapa com `conditionStepId` só aparece após a etapa referenciada ser preenchida |
-| `conditionValue` | Se definido, a resposta do pré-requisito deve ser exatamente esse valor |
+| `conditionValue` | Se definido, a resposta do pré-requisito deve corresponder (match exato em escolha única; inclusão da opção em `MULTI_CHOICE`) |
 
 **Preenchimento:**
 
@@ -80,6 +80,7 @@ Componente `QuestionStep` — renderização por `questionType`:
 | `TEXTAREA` | Texto longo (máx. 5.000 caracteres) |
 | `NUMBER` | Campo numérico com min/max configuráveis |
 | `DATE` | Seletor de data (ISO `YYYY-MM-DD`) |
+| `MULTI_CHOICE` | Checkboxes; respeita min/max de seleções; valor salvo como JSON em `value` |
 
 Ao clicar **Próximo**, salva resposta em `PATCH /public/submissions/{id}/steps/{stepId}/answer`. Erros de validação aparecem em alerta.
 

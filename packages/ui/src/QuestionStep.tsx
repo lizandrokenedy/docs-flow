@@ -2,7 +2,11 @@
 
 import {
   Box,
+  Checkbox,
   FormControl,
+  FormControlLabel,
+  FormGroup,
+  FormHelperText,
   InputLabel,
   MenuItem,
   Select,
@@ -10,7 +14,12 @@ import {
 } from '@mui/material';
 import { motion } from 'framer-motion';
 import type { QuestionConfig, QuestionType } from '@docs-flow/types';
-import { getChoiceOptionLabels, getEffectiveTextLengthLimits } from '@docs-flow/types';
+import {
+  getChoiceOptionLabels,
+  getEffectiveTextLengthLimits,
+  parseMultiChoiceAnswer,
+  serializeMultiChoiceAnswer,
+} from '@docs-flow/types';
 import { ChoiceStep } from './ChoiceStep';
 import { transition } from './motion';
 import { StepCard } from './StepCard';
@@ -21,7 +30,6 @@ export interface QuestionStepProps {
   helpText?: string;
   questionType?: QuestionType | null;
   questionConfig?: QuestionConfig | null;
-  choiceOptions?: string[];
   value?: string;
   onChange: (value: string) => void;
 }
@@ -32,12 +40,75 @@ export function QuestionStep({
   helpText,
   questionType,
   questionConfig,
-  choiceOptions,
   value,
   onChange,
 }: QuestionStepProps) {
-  const options = getChoiceOptionLabels({ choiceOptions, questionConfig });
+  const options = getChoiceOptionLabels({ questionConfig });
   const resolvedType = questionType ?? 'SINGLE_CHOICE';
+
+  if (resolvedType === 'MULTI_CHOICE') {
+    const selected = parseMultiChoiceAnswer(value ?? '');
+    const selectionHint = [
+      questionConfig?.minSelections !== undefined
+        ? `mín. ${questionConfig.minSelections}`
+        : null,
+      questionConfig?.maxSelections !== undefined
+        ? `máx. ${questionConfig.maxSelections}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+
+    const toggleOption = (option: string) => {
+      const isSelected = selected.includes(option);
+      const next = isSelected
+        ? selected.filter((item) => item !== option)
+        : [...selected, option];
+
+      if (
+        !isSelected &&
+        questionConfig?.maxSelections !== undefined &&
+        next.length > questionConfig.maxSelections
+      ) {
+        return;
+      }
+
+      onChange(serializeMultiChoiceAnswer(next));
+    };
+
+    return (
+      <StepCard title={title} instructions={instructions} helpText={helpText}>
+        <FormControl component="fieldset" fullWidth sx={{ mt: 1 }}>
+          <FormGroup>
+            {options.map((option, index) => (
+              <FormControlLabel
+                key={option}
+                control={
+                  <Checkbox
+                    checked={selected.includes(option)}
+                    onChange={() => toggleOption(option)}
+                  />
+                }
+                label={
+                  <Box
+                    component={motion.span}
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ ...transition.fast, delay: index * 0.05 }}
+                  >
+                    {option}
+                  </Box>
+                }
+              />
+            ))}
+          </FormGroup>
+          {selectionHint ? (
+            <FormHelperText>Seleções permitidas: {selectionHint}</FormHelperText>
+          ) : null}
+        </FormControl>
+      </StepCard>
+    );
+  }
 
   if (resolvedType === 'SELECT') {
     return (

@@ -46,13 +46,14 @@ Lista ordenável por **arrastar e soltar** (`@dnd-kit`). Cada item mostra:
 | Campo | Descrição |
 |-------|-----------|
 | Tipo de etapa | `DOCUMENT` ou `QUESTION` (pergunta) |
-| Tipo de pergunta | `SINGLE_CHOICE`, `SELECT`, `YES_NO`, `TEXT`, `TEXTAREA`, `NUMBER`, `DATE` |
+| Tipo de pergunta | `SINGLE_CHOICE`, `SELECT`, `YES_NO`, `TEXT`, `TEXTAREA`, `NUMBER`, `DATE`, `MULTI_CHOICE` |
 | Tipo de documento | Select com tipos cadastrados (obrigatório em DOCUMENT) |
 | Título | Nome exibido no stepper |
 | Instruções | Markdown |
 | Texto de ajuda | Dica em destaque |
 | URL de exemplo | Link "Ver exemplo" |
 | Exibir somente após preencher… | Etapa anterior que deve estar preenchida; primeira etapa = só "Sempre visível" |
+| Resposta exigida (opcional) | Quando o pré-requisito é pergunta de escolha — filtra por opção específica (ou inclusão em multi) |
 | Opções / config | Editor adaptativo (`QuestionOptionsEditor`, `QuestionConfigEditor`) |
 | Máx. arquivos | DOCUMENT |
 | Extensões (override) | Opcional |
@@ -67,11 +68,13 @@ Lista ordenável por **arrastar e soltar** (`@dnd-kit`). Cada item mostra:
 | `TEXT` / `TEXTAREA` | Placeholder, min/max de caracteres |
 | `NUMBER` | Min/max numérico |
 | `DATE` | Sem config extra |
+| `MULTI_CHOICE` | Lista de opções + mín./máx. de seleções (validados contra a quantidade de opções) |
 
 **Condicionais:**
 
 - Lista apenas etapas **anteriores** na ordem do fluxo
 - Significa: "só aparece depois que a etapa selecionada tiver arquivo enviado ou pergunta respondida"
+- Campo **Resposta exigida** aparece quando o pré-requisito é pergunta de escolha (`SINGLE_CHOICE`, `SELECT`, `YES_NO`, `MULTI_CHOICE`)
 - Ao reordenar, condicionais inválidas são removidas pela API (toast de aviso)
 
 **O que gera nova versão** (quando já existem submissões):
@@ -82,8 +85,7 @@ Lista ordenável por **arrastar e soltar** (`@dnd-kit`). Cada item mostra:
 **O que não gera nova versão:**
 
 - Título, instruções, dica rápida e URL de exemplo da etapa
-
-**Limitação atual:** o admin **não** expõe `conditionValue` (ex.: mostrar etapa só se resposta for `"Sim"`). Isso funciona via API/seed — ver template Cadastro de Fornecedor.
+- Salvar nome, descrição ou flags de template na aba Geral (exceto toggle **Ativo**)
 
 **Reordenar:** arraste pelo ícone ⋮⋮; `PATCH /workflows/:id/steps/reorder`.
 
@@ -96,7 +98,9 @@ Exemplos de linhas exibidas:
 - `2. CPF: exibição Sempre visível → Após preencher 1. Documento de Identidade (RG)`
 - `3. Comprovante: posição 3 → 2`
 
-**Quando aparece:** só após o workflow ter submissões e sofrer alterações de fluxo. Ajustes de texto/instruções não fragmentam o histórico.
+**Quando aparece:** só depois da **primeira submissão** no workflow. A partir daí, alterações de fluxo (nova etapa, reordenação, condição, tipo, config, obrigatoriedade, etc.) arquivam a versão anterior e incrementam `version`. Ajustes só de título/instruções não geram nova versão.
+
+Se ainda não houver submissões, a aba mostra apenas a versão atual — edições feitas antes disso não entram no histórico.
 
 **API:** `GET /workflows/:id/versions` e `GET /workflows/:id/versions/:versionNumber`.
 

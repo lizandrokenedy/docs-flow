@@ -14,7 +14,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 
 interface VersionListItem {
@@ -38,19 +38,43 @@ interface VersionDetail {
 
 interface WorkflowVersionHistoryProps {
   workflowId: string;
+  submissionCount?: number;
 }
 
-export function WorkflowVersionHistory({ workflowId }: WorkflowVersionHistoryProps) {
+export function WorkflowVersionHistory({
+  workflowId,
+  submissionCount = 0,
+}: WorkflowVersionHistoryProps) {
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
 
-  const { data: versions = [], isLoading } = useQuery({
+  const { data: versions = [], isLoading, isError, error } = useQuery({
     queryKey: ['workflow-versions', workflowId],
     queryFn: () => api.get<VersionListItem[]>(`/workflows/${workflowId}/versions`),
   });
 
+  useEffect(() => {
+    setSelectedVersion(null);
+  }, [workflowId]);
+
+  useEffect(() => {
+    if (selectedVersion === null) {
+      return;
+    }
+
+    if (!versions.some((item) => item.version === selectedVersion)) {
+      setSelectedVersion(null);
+    }
+  }, [versions, selectedVersion]);
+
   const activeVersion = selectedVersion ?? versions[0]?.version ?? null;
 
-  const { data: versionDetail, isLoading: loadingDetail } = useQuery({
+  const {
+    data: versionDetail,
+    isLoading: loadingDetail,
+    isFetching: fetchingDetail,
+    isError: detailError,
+    error: detailErrorObject,
+  } = useQuery({
     queryKey: ['workflow-version', workflowId, activeVersion],
     queryFn: () => api.get<VersionDetail>(`/workflows/${workflowId}/versions/${activeVersion}`),
     enabled: activeVersion !== null,
@@ -58,6 +82,14 @@ export function WorkflowVersionHistory({ workflowId }: WorkflowVersionHistoryPro
 
   if (isLoading) {
     return <Typography>Carregando histórico...</Typography>;
+  }
+
+  if (isError) {
+    return (
+      <Alert severity="error">
+        {(error as Error)?.message ?? 'Não foi possível carregar o histórico de versões.'}
+      </Alert>
+    );
   }
 
   const archivedVersions = versions.filter((item) => !item.isCurrent);
@@ -73,12 +105,17 @@ export function WorkflowVersionHistory({ workflowId }: WorkflowVersionHistoryPro
         Ajustes de texto e instruções não geram nova versão.
       </Typography>
 
-      {archivedVersions.length === 0 && (
+      {submissionCount === 0 ? (
         <Alert severity="info" sx={{ mb: 2 }}>
-          Ainda não há versões arquivadas. Quando existirem submissões, alterações de fluxo passam a
-          aparecer aqui com o detalhe do que mudou.
+          O histórico só registra alterações de fluxo depois da primeira submissão. Edições feitas
+          antes disso não geram versões arquivadas — a aba mostra apenas a versão atual do fluxo.
         </Alert>
-      )}
+      ) : archivedVersions.length === 0 ? (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Ainda não há versões arquivadas neste workflow. A próxima alteração de fluxo (nova etapa,
+          reordenação, condição, etc.) criará uma entrada no histórico.
+        </Alert>
+      ) : null}
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '320px 1fr' }, gap: 2 }}>
         <Paper variant="outlined" sx={{ maxHeight: 480, overflow: 'auto' }}>
@@ -119,8 +156,17 @@ export function WorkflowVersionHistory({ workflowId }: WorkflowVersionHistoryPro
         </Paper>
 
         <Paper variant="outlined" sx={{ p: 2, minHeight: 240 }}>
-          {loadingDetail || !versionDetail ? (
+          {activeVersion === null ? (
+            <Typography color="text.secondary">Nenhuma versão disponível.</Typography>
+          ) : detailError ? (
+            <Alert severity="error">
+              {(detailErrorObject as Error)?.message ??
+                'Não foi possível carregar os detalhes desta versão.'}
+            </Alert>
+          ) : loadingDetail || (fetchingDetail && !versionDetail) ? (
             <Typography color="text.secondary">Carregando alterações...</Typography>
+          ) : !versionDetail ? (
+            <Typography color="text.secondary">Detalhes indisponíveis para esta versão.</Typography>
           ) : (
             <>
               <Typography variant="subtitle1" fontWeight={600} gutterBottom>

@@ -27,7 +27,7 @@ Lista agrupada por etapa do workflow (todas as etapas do snapshot/workflow — *
 **Etapas QUESTION:**
 
 - Chip "Pergunta"
-- Valor da resposta e data de registro
+- Valor da resposta formatado para exibição (múltipla escolha aparece como lista separada por vírgula) e data de registro
 - "Nenhuma resposta registrada" se vazio
 
 **Etapas DOCUMENT:**

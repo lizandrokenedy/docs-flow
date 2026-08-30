@@ -17,7 +17,7 @@ O sistema cobre o ciclo básico ponta a ponta:
 9. Stepper compacto para workflows longos (≥ 6 etapas)
 10. Retomada de sessão no wizard (`localStorage` + `currentStepPosition`)
 11. Feedback visual no admin (snackbar/toast em mutações, cópia de links e erros de carregamento)
-12. Workflows inteligentes: duplicar, biblioteca de templates, etapas condicionais, **tipos de pergunta** (escolha, texto, número, data), histórico com diff e versionamento por snapshot
+12. Workflows inteligentes: duplicar, biblioteca de templates, etapas condicionais, tipos de pergunta (escolha única, select, sim/não, múltipla escolha, texto, número, data), histórico com diff e versionamento por snapshot
 13. Exclusão de submissões e arquivos no admin
 14. Stepper com mensagens de bloqueio e preview de respostas antes de salvar
 
@@ -196,22 +196,20 @@ Funcionalidades que diferenciam o produto em cenários complexos.
 
 - **Duplicar workflow** — `POST /workflows/:id/duplicate` + botão no admin (copia `questionType` e `questionConfig`)
 - **Templates** — `isTemplate`, `GET /workflows/templates`, `POST /workflows/from-template/:id`
-- **Etapas condicionais** — `conditionStepId` aponta para etapa anterior preenchida (upload ou resposta QUESTION); `conditionValue` opcional para filtrar resposta específica (API/seed; admin não expõe na UI)
-- **Etapas QUESTION** — tipos `SINGLE_CHOICE`, `SELECT`, `YES_NO`, `TEXT`, `TEXTAREA`, `NUMBER`, `DATE`
+- **Etapas condicionais** — `conditionStepId` + `conditionValue` opcional (admin e API)
+- **Etapas QUESTION** — todos os tipos, incluindo `MULTI_CHOICE`
 - **Versionamento** — snapshot JSON ao criar submissão; `version` incrementa só em alterações de fluxo quando há submissões
 - **Sanitize ao reordenar** — condicionais inválidas removidas automaticamente (`clearedConditions` na resposta)
 - **Biblioteca de templates** — página `/workflows/templates` com filtro por categoria, preview de etapas e criação a partir do template
 - **Histórico de versões** — aba **Histórico** com diff legível; só alterações de fluxo geram nova versão
 - **Limpeza ao mudar ramo** — respostas e uploads de etapas ocultas removidos ao salvar nova resposta
 - **Exclusão de submissão** — `DELETE /submissions/:id` remove DB + arquivos no disco
+- **Tipos de pergunta completos** — opções centralizadas em `questionConfig.options`
 
 **O que ainda falta:**
 
-- `MULTI_CHOICE` na UI e API
-- Admin: campo `conditionValue` no editor de condicional
 - Editor visual de fluxo (diagrama interativo)
 - Etapas condicionais com operadores compostos (AND/OR)
-- Remover duplicação `choiceOptions` vs `questionConfig.options`
 
 ---
 
@@ -267,9 +265,7 @@ Itens do código atual que podem ser refinados sem grandes features.
 |------|----------|----------|
 | Status `DRAFT` | Existe no enum `SubmissionStatus`, não é usado | Usar para rascunho antes de `IN_PROGRESS`, ou remover do schema |
 | Seed idempotente | Etapas só criadas se workflow tiver 0 steps | Documentar que alterações no seed exigem `--volumes` ou edição via admin |
-| Admin: `conditionValue` | API e seed suportam; editor não expõe na UI | Campo condicional para resposta específica em QUESTION |
 | Admin: respostas na listagem | Detalhe exibe respostas; listagem não | Coluna ou filtro por respostas |
-| `MULTI_CHOICE` | No schema Prisma; bloqueado na API | UI wizard + admin + validação |
 | Healthcheck da API | Postgres e ClamAV têm healthcheck no Compose; API não | Adicionar `GET /health` no healthcheck do serviço `api` |
 | ESLint compartilhado | Não implementado | Pacote `packages/eslint-config` para admin, web e api |
 | Ícones de tipo de documento | Campo `icon` no schema, pouco usado na UI | Mapear ícones MUI no admin e no wizard |
@@ -319,7 +315,6 @@ Fase 3 — Produção
   → Testes + CI + healthcheck da API
 
 Fase 4 — Produto avançado
-  → MULTI_CHOICE + conditionValue no admin
   → Caso/processo com múltiplos herdeiros
   → Editor visual de fluxo / operadores AND/OR em condicionais
   → LGPD e auditoria

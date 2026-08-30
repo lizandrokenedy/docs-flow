@@ -67,7 +67,9 @@ import type {
 } from '@docs-flow/types';
 import {
   getChoiceOptionLabels,
+  getMultiChoiceConfigError,
   getQuestionTypeLabel,
+  isChoiceQuestionType,
   isFreeFormQuestionType,
   isQuestionStep,
   normalizeStepKind,
@@ -87,6 +89,7 @@ interface StepForm {
   questionOptions: QuestionOption[];
   questionConfig: QuestionConfig;
   conditionStepId: string;
+  conditionValue: string;
   isRequired: boolean;
   maxFiles: number;
   acceptedExtensionsOverride: string;
@@ -108,6 +111,7 @@ const defaultStepForm: StepForm = {
   questionOptions: defaultQuestionOptions(),
   questionConfig: {},
   conditionStepId: '',
+  conditionValue: '',
   isRequired: true,
   maxFiles: 1,
   acceptedExtensionsOverride: '',
@@ -220,6 +224,12 @@ export default function WorkflowEditorPage() {
       return {
         ...data.questionConfig,
         options: data.questionOptions.filter((option) => option.label.trim()),
+        ...(data.questionType === 'MULTI_CHOICE'
+          ? {
+              minSelections: data.questionConfig.minSelections,
+              maxSelections: data.questionConfig.maxSelections,
+            }
+          : {}),
       };
     }
 
@@ -242,9 +252,6 @@ export default function WorkflowEditorPage() {
       .map((e) => e.trim().toLowerCase())
       .filter(Boolean);
     const isQuestion = data.stepKind === 'QUESTION';
-    const optionLabels = data.questionOptions
-      .map((option) => option.label.trim())
-      .filter(Boolean);
 
     return {
       documentTypeId: isQuestion ? null : data.documentTypeId || undefined,
@@ -256,13 +263,7 @@ export default function WorkflowEditorPage() {
       questionType: isQuestion ? data.questionType : null,
       questionConfig: isQuestion ? buildStepQuestionConfig(data) : null,
       conditionStepId: data.conditionStepId || null,
-      choiceOptions: isQuestion
-        ? data.questionType === 'YES_NO'
-          ? ['Sim', 'Não']
-          : requiresQuestionOptions(data.questionType)
-            ? optionLabels
-            : []
-        : [],
+      conditionValue: data.conditionValue.trim() || null,
       isRequired: data.isRequired,
       maxFiles: isQuestion ? 1 : data.maxFiles,
       acceptedExtensionsOverride: isQuestion ? [] : extensions.length > 0 ? extensions : undefined,
@@ -405,6 +406,7 @@ export default function WorkflowEditorPage() {
         questionOptions: questionType === 'YES_NO' ? defaultQuestionOptions() : questionOptions,
         questionConfig,
         conditionStepId,
+        conditionValue: step.conditionValue || '',
         isRequired: step.isRequired,
         maxFiles: step.maxFiles,
         acceptedExtensionsOverride: step.acceptedExtensionsOverride?.join(', ') || '',
@@ -435,7 +437,27 @@ export default function WorkflowEditorPage() {
     editingStepPosition,
     editingStep?.id,
   );
+  const selectedConditionStep = conditionCandidateSteps.find(
+    (step) => step.id === stepForm.conditionStepId,
+  );
+  const conditionValueOptions =
+    selectedConditionStep && isQuestionStep(selectedConditionStep.stepKind)
+      ? getChoiceOptionLabels(selectedConditionStep)
+      : [];
+  const showConditionValueField =
+    Boolean(stepForm.conditionStepId) &&
+    Boolean(selectedConditionStep) &&
+    isQuestionStep(selectedConditionStep?.stepKind) &&
+    isChoiceQuestionType(selectedConditionStep?.questionType);
   const conditionHelperText = getConditionHelperText(editingStepPosition);
+  const stepQuestionOptionCount =
+    isQuestionForm && requiresQuestionOptions(stepForm.questionType)
+      ? stepForm.questionOptions.filter((option) => option.label.trim()).length
+      : 0;
+  const multiChoiceConfigError =
+    isQuestionForm && stepForm.questionType === 'MULTI_CHOICE'
+      ? getMultiChoiceConfigError(stepForm.questionConfig, stepQuestionOptionCount)
+      : null;
 
   return (
     <Box>
@@ -604,7 +626,12 @@ export default function WorkflowEditorPage() {
         </Box>
       )}
 
-      {tab === 2 && <WorkflowVersionHistory workflowId={workflowId} />}
+      {tab === 2 && (
+        <WorkflowVersionHistory
+          workflowId={workflowId}
+          submissionCount={workflow?._count?.submissions ?? 0}
+        />
+      )}
 
       <Dialog open={stepDialogOpen} onClose={() => setStepDialogOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>{editingStep ? 'Editar Step' : 'Novo Step'}</DialogTitle>
@@ -651,7 +678,13 @@ export default function WorkflowEditorPage() {
                       ...prev,
                       questionType,
                       questionConfig:
-                        sanitizeQuestionConfig(questionType, prev.questionConfig) ?? {},
+                        sanitizeQuestionConfig(
+                          questionType,
+                          prev.questionConfig,
+                          questionType === 'MULTI_CHOICE'
+                            ? prev.questionOptions.filter((option) => option.label.trim()).length
+                            : undefined,
+                        ) ?? {},
                     }));
                   }}
                 >
@@ -662,17 +695,35 @@ export default function WorkflowEditorPage() {
                   <MenuItem value="TEXTAREA">Texto longo</MenuItem>
                   <MenuItem value="NUMBER">Número</MenuItem>
                   <MenuItem value="DATE">Data</MenuItem>
+                  <MenuItem value="MULTI_CHOICE">Múltipla escolha</MenuItem>
                 </Select>
               </FormControl>
               {requiresQuestionOptions(stepForm.questionType) && (
                 <QuestionOptionsEditor
                   options={stepForm.questionOptions}
-                  onChange={(questionOptions) => setStepForm({ ...stepForm, questionOptions })}
+                  onChange={(questionOptions) => {
+                    const optionCount = questionOptions.filter((option) => option.label.trim()).length;
+                    setStepForm((prev) => ({
+                      ...prev,
+                      questionOptions,
+                      ...(prev.questionType === 'MULTI_CHOICE'
+                        ? {
+                            questionConfig:
+                              sanitizeQuestionConfig(
+                                'MULTI_CHOICE',
+                                prev.questionConfig,
+                                optionCount,
+                              ) ?? prev.questionConfig,
+                          }
+                        : {}),
+                    }));
+                  }}
                 />
               )}
               <QuestionConfigEditor
                 questionType={stepForm.questionType}
                 config={stepForm.questionConfig}
+                optionCount={stepQuestionOptionCount}
                 onChange={(questionConfig) => setStepForm({ ...stepForm, questionConfig })}
               />
             </>
@@ -739,6 +790,7 @@ export default function WorkflowEditorPage() {
                 setStepForm({
                   ...stepForm,
                   conditionStepId: e.target.value,
+                  conditionValue: '',
                 })
               }
             >
@@ -751,6 +803,33 @@ export default function WorkflowEditorPage() {
             </Select>
             <FormHelperText>{conditionHelperText}</FormHelperText>
           </FormControl>
+          {showConditionValueField && (
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Resposta exigida (opcional)</InputLabel>
+              <Select
+                value={stepForm.conditionValue}
+                label="Resposta exigida (opcional)"
+                onChange={(e) =>
+                  setStepForm({
+                    ...stepForm,
+                    conditionValue: e.target.value,
+                  })
+                }
+              >
+                <MenuItem value="">Qualquer resposta</MenuItem>
+                {conditionValueOptions.map((option) => (
+                  <MenuItem key={option} value={option}>
+                    {option}
+                  </MenuItem>
+                ))}
+              </Select>
+              <FormHelperText>
+                {selectedConditionStep?.questionType === 'MULTI_CHOICE'
+                  ? 'A etapa só aparece se a opção estiver entre as selecionadas.'
+                  : 'A etapa só aparece se a resposta for exatamente esta opção.'}
+              </FormHelperText>
+            </FormControl>
+          )}
           {stepForm.stepKind === 'DOCUMENT' && (
             <>
               <TextField
@@ -792,7 +871,8 @@ export default function WorkflowEditorPage() {
               (stepForm.stepKind === 'DOCUMENT' && !hasValidDocumentType) ||
               (stepForm.stepKind === 'QUESTION' &&
                 requiresQuestionOptions(stepForm.questionType) &&
-                stepForm.questionOptions.filter((option) => option.label.trim()).length < 2)
+                stepForm.questionOptions.filter((option) => option.label.trim()).length < 2) ||
+              Boolean(multiChoiceConfigError)
             }
             onClick={() => {
               if (editingStep) {

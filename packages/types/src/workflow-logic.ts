@@ -1,8 +1,14 @@
-import { isQuestionStep } from './question';
+import {
+  isQuestionStep,
+  parseMultiChoiceAnswer,
+  type QuestionType,
+} from './question';
 
 export type StepKind = 'DOCUMENT' | 'QUESTION';
 
-export type StepAnswerMap = Record<string, string>;
+export type StepAnswerValue = string | string[];
+
+export type StepAnswerMap = Record<string, StepAnswerValue>;
 
 export interface StepVisibilityContext {
   answers: StepAnswerMap;
@@ -13,20 +19,63 @@ export interface WorkflowStepLike {
   id: string;
   position: number;
   stepKind?: StepKind | null;
+  questionType?: QuestionType | string | null;
   conditionStepId?: string | null;
   conditionValue?: string | null;
 }
 
+function parseStoredAnswer(
+  questionType: QuestionType | string | null | undefined,
+  value: string,
+): StepAnswerValue {
+  if (questionType === 'MULTI_CHOICE') {
+    return parseMultiChoiceAnswer(value);
+  }
+
+  return value;
+}
+
 export function answersToMap(
   answers: Array<{ workflowStepId: string; value: string }>,
+  steps?: Array<{ id: string; questionType?: QuestionType | string | null }>,
 ): StepAnswerMap {
-  return Object.fromEntries(answers.map((answer) => [answer.workflowStepId, answer.value]));
+  const stepTypes = steps ? new Map(steps.map((step) => [step.id, step.questionType])) : null;
+
+  return Object.fromEntries(
+    answers.map((answer) => [
+      answer.workflowStepId,
+      parseStoredAnswer(stepTypes?.get(answer.workflowStepId), answer.value),
+    ]),
+  );
 }
 
 export function completedStepIdsFromUploads(
   uploads: Array<{ workflowStepId: string }>,
 ): Set<string> {
   return new Set(uploads.map((upload) => upload.workflowStepId));
+}
+
+function answerMatchesCondition(
+  answer: StepAnswerValue,
+  conditionValue: string,
+): boolean {
+  if (Array.isArray(answer)) {
+    return answer.includes(conditionValue);
+  }
+
+  return answer === conditionValue;
+}
+
+function hasAnswerValue(answer: StepAnswerValue | undefined): boolean {
+  if (!answer) {
+    return false;
+  }
+
+  if (Array.isArray(answer)) {
+    return answer.length > 0;
+  }
+
+  return Boolean(answer.trim());
 }
 
 function isPrerequisiteMet(
@@ -38,11 +87,11 @@ function isPrerequisiteMet(
 
   if (isQuestionStep(stepKind)) {
     const answer = context.answers[prerequisite.id];
-    if (!answer) {
+    if (!hasAnswerValue(answer)) {
       return false;
     }
 
-    if (conditionValue && answer !== conditionValue) {
+    if (conditionValue && !answerMatchesCondition(answer!, conditionValue)) {
       return false;
     }
 
@@ -117,6 +166,10 @@ export function getStepLockMessage<T extends WorkflowStepLike & { title?: string
   const prerequisiteTitle = prerequisite.title?.trim() || 'etapa anterior';
 
   if (step.conditionValue) {
+    if (prerequisite.questionType === 'MULTI_CHOICE') {
+      return `Libera quando "${prerequisiteTitle}" incluir "${step.conditionValue}"`;
+    }
+
     return `Libera quando "${prerequisiteTitle}" for "${step.conditionValue}"`;
   }
 
@@ -165,7 +218,6 @@ export interface WorkflowSnapshot {
     questionConfig?: Record<string, unknown> | null;
     conditionStepId?: string | null;
     conditionValue?: string | null;
-    choiceOptions: string[];
     isRequired: boolean;
     maxFiles: number;
     acceptedExtensionsOverride: string[];

@@ -41,22 +41,21 @@ Um passo dentro do workflow. Cada etapa possui:
 | Campo | Descrição |
 |-------|-----------|
 | `stepKind` | `DOCUMENT` (upload) ou `QUESTION` (pergunta) |
-| `questionType` | Tipo da pergunta: `SINGLE_CHOICE`, `SELECT`, `YES_NO`, `TEXT`, `TEXTAREA`, `NUMBER`, `DATE` |
-| `questionConfig` | JSON com opções, placeholder, min/max de caracteres ou valor |
+| `questionType` | Tipo da pergunta: `SINGLE_CHOICE`, `SELECT`, `YES_NO`, `TEXT`, `TEXTAREA`, `NUMBER`, `DATE`, `MULTI_CHOICE` |
+| `questionConfig` | JSON com opções (`options[]`), placeholder, min/max e limites de seleção |
 | `documentTypeId` | Obrigatório em etapas DOCUMENT; opcional (null) em QUESTION |
 | Título, instruções, ajuda, exemplo | Conteúdo exibido no wizard |
 | `isRequired` | Obrigatória ou opcional |
 | `maxFiles` | Quantidade máxima de arquivos (etapas DOCUMENT) |
 | `conditionStepId` | Etapa anterior que deve estar **preenchida** antes desta aparecer |
-| `conditionValue` | Opcional — exige resposta exata em pré-requisito QUESTION |
-| `choiceOptions` | Labels das opções (sincronizado com `questionConfig.options`) |
+| `conditionValue` | Opcional — em escolha única, exige resposta exata; em `MULTI_CHOICE`, exige que a opção esteja entre as selecionadas |
 
 #### Etapas condicionais
 
 Uma etapa só entra na lista **navegável** do wizard quando a etapa referenciada em `conditionStepId` foi preenchida:
 
 - **Pré-requisito DOCUMENT** → pelo menos um arquivo enviado naquela etapa
-- **Pré-requisito QUESTION** → pergunta respondida; se `conditionValue` estiver definido, a resposta deve ser exatamente esse valor
+- **Pré-requisito QUESTION** → pergunta respondida; se `conditionValue` estiver definido, a resposta deve corresponder (match exato em escolha única; inclusão da opção em `MULTI_CHOICE`)
 
 O **stepper** pode antecipar etapas de documentos em cadeia (com ícone de cadeado até liberar). Etapas que dependem de pergunta só aparecem após a resposta.
 
@@ -105,7 +104,7 @@ A sessão é salva no navegador (`localStorage`) para retomar depois.
 ## O que já funciona no MVP
 
 - Scan antivírus nos uploads (ClamAV no Docker, fail-closed)
-- Workflows com etapas condicionais e **tipos de pergunta** (escolha, texto, número, data)
+- Workflows com etapas condicionais e **tipos de pergunta** (escolha única, select, sim/não, múltipla escolha, texto, número, data)
 - Templates reutilizáveis, biblioteca com preview e duplicação de workflows
 - Histórico de versões com diff legível no admin
 - Versionamento por snapshot nas submissões
@@ -121,6 +120,4 @@ Resumo das principais lacunas. Análise completa: **[roadmap-e-lacunas.md](./roa
 - Armazenamento de arquivos **local** (volume Docker), sem S3/MinIO
 - Sem notificações por e-mail
 - Sem exportação em lote de submissões
-- Admin não expõe `conditionValue` (condicional por resposta específica — só via API/seed)
-- `MULTI_CHOICE` no schema, mas **não implementado** na UI/API
 - Sem testes automatizados nem CI

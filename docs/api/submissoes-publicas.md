@@ -54,11 +54,17 @@ Salva resposta de etapa **QUESTION**.
 { "value": "Sim" }
 ```
 
+Exemplo para `MULTI_CHOICE` (JSON stringificado):
+
+```json
+{ "value": "[\"Opção A\",\"Opção B\"]" }
+```
+
 - `400` se etapa não for QUESTION
-- `400` se valor inválido para o `questionType` (opção inexistente, número fora do range, data inválida, etc.)
+- `400` se valor inválido para o `questionType` (opção inexistente, número fora do range, data inválida, seleções abaixo/acima do min/max em multi, etc.)
 - Resposta vazia em etapa opcional **remove** o registro de resposta
 
-Tipos suportados: `SINGLE_CHOICE`, `SELECT`, `YES_NO`, `TEXT`, `TEXTAREA`, `NUMBER`, `DATE`. `MULTI_CHOICE` retorna `400`.
+Tipos suportados: `SINGLE_CHOICE`, `SELECT`, `YES_NO`, `TEXT`, `TEXTAREA`, `NUMBER`, `DATE`, `MULTI_CHOICE`.
 
 ### `POST /public/submissions/:id/steps/:stepId/upload`
 

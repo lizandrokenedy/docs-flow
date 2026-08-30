@@ -82,12 +82,12 @@ Quando `_count.submissions > 0`, a API arquiva o snapshot atual em `workflow_ver
 | `POST /workflows/:id/steps` | Sempre |
 | `DELETE /workflows/:id/steps/:stepId` | Sempre |
 | `PATCH /workflows/:id/steps/reorder` | Sempre |
-| `PATCH /workflows/:id/steps/:stepId` | Campos de fluxo: `documentTypeId`, `stepKind`, `questionType`, `questionConfig`, `conditionStepId`, `conditionValue`, `choiceOptions`, `isRequired`, `maxFiles`, `acceptedExtensionsOverride`, `position` |
+| `PATCH /workflows/:id/steps/:stepId` | Quando algum campo de fluxo **muda de valor** (`documentTypeId`, `stepKind`, `questionType`, `questionConfig`, `conditionStepId`, `conditionValue`, `isRequired`, `maxFiles`, `acceptedExtensionsOverride`, `position`) |
 
 **Não gera nova versão:**
 
-- `PATCH` de etapa alterando só `title`, `instructions`, `helpText`, `exampleUrl`
-- `PATCH` do workflow alterando só nome, descrição ou metadados de template
+- `PATCH` de etapa alterando só `title`, `instructions`, `helpText`, `exampleUrl` (mesmo que o admin envie outros campos iguais ao estado atual)
+- `PATCH` do workflow alterando só nome, descrição ou metadados de template (incluindo reenviar `isActive` sem mudança)
 
 Submissões usam `workflowSnapshot` capturado na criação — independente do número de versão posterior.
 
@@ -124,7 +124,25 @@ Adiciona etapa. Se `position` omitido, adiciona ao final.
       { "id": "pj", "label": "Pessoa Jurídica" }
     ]
   },
-  "choiceOptions": ["Pessoa Física", "Pessoa Jurídica"],
+  "isRequired": true
+}
+```
+
+**Etapa QUESTION (`MULTI_CHOICE`):**
+
+```json
+{
+  "title": "Serviços de interesse",
+  "stepKind": "QUESTION",
+  "questionType": "MULTI_CHOICE",
+  "questionConfig": {
+    "options": [
+      { "id": "opcao-1", "label": "Opção A" },
+      { "id": "opcao-2", "label": "Opção B" }
+    ],
+    "minSelections": 1,
+    "maxSelections": 2
+  },
   "isRequired": true
 }
 ```
@@ -133,9 +151,8 @@ Adiciona etapa. Se `position` omitido, adiciona ao final.
 |-------|--------|
 | `documentTypeId` | Obrigatório em DOCUMENT; omitido ou null em QUESTION |
 | `stepKind` | `DOCUMENT` (padrão) ou `QUESTION` |
-| `questionType` | Obrigatório se `stepKind === QUESTION`; `MULTI_CHOICE` rejeitado |
-| `questionConfig` | Validado conforme `questionType` (opções, min/max, placeholder) |
-| `choiceOptions` | Sincronizado com labels de `questionConfig.options` para tipos de lista |
+| `questionType` | Obrigatório se `stepKind === QUESTION`; `MULTI_CHOICE` suportado |
+| `questionConfig` | Validado conforme `questionType` (opções em `options[]`, min/max, limites de seleção em multi não podem exceder o número de opções) |
 | `conditionStepId` | Deve referenciar etapa **anterior** (`position` menor) |
 | `conditionValue` | Opcional; só válido se pré-requisito for QUESTION com opções e valor existente |
 

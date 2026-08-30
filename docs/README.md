@@ -16,7 +16,6 @@ Sistema de coleta guiada de documentos. Permite criar **workflows** (fluxos) com
 - [Componentes de UI compartilhados](./componentes-ui.md)
 - [Dados de exemplo (seed)](./seed-e-exemplos.md)
 - [Roadmap e lacunas do projeto](./roadmap-e-lacunas.md)
-- [Planejamento: tipos de pergunta](./planejamento-tipos-de-pergunta.md)
 
 ### Painel Admin (`http://localhost:3001`)
 

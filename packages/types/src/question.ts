@@ -21,6 +21,7 @@ export const QuestionTypeV2Schema = z.enum([
   'TEXTAREA',
   'NUMBER',
   'DATE',
+  'MULTI_CHOICE',
 ]);
 
 export const QuestionOptionSchema = z.object({
@@ -92,44 +93,52 @@ export function optionsFromLabels(labels: string[]): QuestionOption[] {
   });
 }
 
-export function getChoiceOptionLabels(step: {
-  choiceOptions?: string[];
-  questionConfig?: QuestionConfig | null;
-}): string[] {
-  const configOptions = step.questionConfig?.options;
-  if (configOptions?.length) {
-    return configOptions.map((option) => option.label);
-  }
+export function getChoiceOptionLabels(step: { questionConfig?: QuestionConfig | null }): string[] {
+  return step.questionConfig?.options?.map((option) => option.label) ?? [];
+}
 
-  return step.choiceOptions ?? [];
+export function countQuestionOptions(questionConfig?: QuestionConfig | null): number {
+  return questionConfig?.options?.length ?? 0;
 }
 
 export function buildQuestionConfig(
   questionType: QuestionType | null | undefined,
-  choiceOptions?: string[],
   questionConfig?: QuestionConfig | null,
 ): QuestionConfig | null {
   if (!questionType) {
     return null;
   }
 
+  const config = questionConfig ?? {};
+
   if (questionType === 'YES_NO') {
-    return { options: YES_NO_OPTIONS };
+    return {
+      options: YES_NO_OPTIONS,
+    };
   }
 
   if (isFreeFormQuestionType(questionType)) {
-    return questionConfig ?? {};
+    const next: QuestionConfig = {};
+    if (config.placeholder) next.placeholder = config.placeholder;
+    if (config.minLength !== undefined) next.minLength = config.minLength;
+    if (config.maxLength !== undefined) next.maxLength = config.maxLength;
+    if (config.min !== undefined) next.min = config.min;
+    if (config.max !== undefined) next.max = config.max;
+    return sanitizeQuestionConfig(questionType, next) ?? next;
   }
 
-  if (questionConfig?.options?.length) {
-    return questionConfig;
+  if (questionType === 'MULTI_CHOICE') {
+    const next: QuestionConfig = {
+      options: config.options ?? [],
+    };
+    if (config.minSelections !== undefined) next.minSelections = config.minSelections;
+    if (config.maxSelections !== undefined) next.maxSelections = config.maxSelections;
+    return next;
   }
 
-  if (choiceOptions?.length) {
-    return { options: optionsFromLabels(choiceOptions) };
-  }
-
-  return questionConfig ?? { options: [] };
+  return {
+    options: config.options ?? [],
+  };
 }
 
 export function requiresQuestionOptions(questionType?: QuestionType | null): boolean {
@@ -188,16 +197,100 @@ export class QuestionConfigValidationError extends Error {
   }
 }
 
+export function getMultiChoiceConfigError(
+  config: QuestionConfig | null | undefined,
+  optionCount: number,
+): string | null {
+  if (!config) {
+    return null;
+  }
+
+  const { minSelections, maxSelections } = config;
+
+  if (
+    minSelections !== undefined &&
+    maxSelections !== undefined &&
+    minSelections > maxSelections
+  ) {
+    return 'O mínimo de seleções não pode ser maior que o máximo';
+  }
+
+  if (optionCount > 0) {
+    if (maxSelections !== undefined && maxSelections > optionCount) {
+      return `O máximo de seleções não pode ser maior que o número de opções (${optionCount})`;
+    }
+
+    if (minSelections !== undefined && minSelections > optionCount) {
+      return `O mínimo de seleções não pode ser maior que o número de opções (${optionCount})`;
+    }
+  }
+
+  return null;
+}
+
+export function getMultiChoiceConfigWarning(
+  config: QuestionConfig | null | undefined,
+  optionCount: number,
+): string | null {
+  if (!config || optionCount < 2) {
+    return null;
+  }
+
+  if (config.minSelections !== undefined && config.minSelections === optionCount) {
+    return 'O mínimo igual ao total de opções equivale a exigir todas as alternativas.';
+  }
+
+  return null;
+}
+
 export function sanitizeQuestionConfig(
   questionType: QuestionType,
   config: QuestionConfig | null | undefined,
+  optionCount?: number,
 ): QuestionConfig | null {
   if (!config) {
     return null;
   }
 
-  if (questionType !== 'TEXT' && questionType !== 'TEXTAREA') {
+  if (questionType !== 'TEXT' && questionType !== 'TEXTAREA' && questionType !== 'MULTI_CHOICE') {
     return config;
+  }
+
+  if (questionType === 'MULTI_CHOICE') {
+    const next: QuestionConfig = { ...config };
+
+    if (next.minSelections !== undefined) {
+      next.minSelections = Math.max(0, next.minSelections);
+      if (next.minSelections === 0) {
+        delete next.minSelections;
+      }
+    }
+
+    if (next.maxSelections !== undefined) {
+      next.maxSelections = Math.max(0, next.maxSelections);
+      if (next.maxSelections === 0) {
+        delete next.maxSelections;
+      }
+    }
+
+    if (optionCount !== undefined && optionCount > 0) {
+      if (next.maxSelections !== undefined) {
+        next.maxSelections = Math.min(next.maxSelections, optionCount);
+      }
+      if (next.minSelections !== undefined) {
+        next.minSelections = Math.min(next.minSelections, optionCount);
+      }
+    }
+
+    if (
+      next.minSelections !== undefined &&
+      next.maxSelections !== undefined &&
+      next.minSelections > next.maxSelections
+    ) {
+      next.minSelections = next.maxSelections;
+    }
+
+    return next;
   }
 
   const limits = getQuestionTextLengthLimits(questionType)!;
@@ -231,6 +324,7 @@ export function sanitizeQuestionConfig(
 export function assertQuestionConfigForType(
   questionType: QuestionType,
   config: QuestionConfig | null | undefined,
+  optionCount?: number,
 ): void {
   if (!config) {
     return;
@@ -268,6 +362,14 @@ export function assertQuestionConfigForType(
       throw new QuestionConfigValidationError('O valor mínimo não pode ser maior que o máximo');
     }
   }
+
+  if (questionType === 'MULTI_CHOICE') {
+    const resolvedOptionCount = optionCount ?? countQuestionOptions(config);
+    const error = getMultiChoiceConfigError(config, resolvedOptionCount);
+    if (error) {
+      throw new QuestionConfigValidationError(error);
+    }
+  }
 }
 
 export function getEffectiveTextLengthLimits(
@@ -294,6 +396,45 @@ export function getEffectiveTextLengthLimits(
 
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
+export function parseMultiChoiceAnswer(value: string): string[] {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return [];
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+export function serializeMultiChoiceAnswer(values: string[]): string {
+  const unique = [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+  unique.sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  return JSON.stringify(unique);
+}
+
+export function formatQuestionAnswerForDisplay(
+  questionType: QuestionType,
+  value: string,
+): string {
+  if (questionType === 'MULTI_CHOICE') {
+    const values = parseMultiChoiceAnswer(value);
+    return values.length > 0 ? values.join(', ') : '';
+  }
+
+  return value;
+}
+
 export class QuestionAnswerValidationError extends Error {
   constructor(message: string) {
     super(message);
@@ -305,6 +446,10 @@ export function normalizeQuestionAnswerValue(
   questionType: QuestionType,
   value: string,
 ): string {
+  if (questionType === 'MULTI_CHOICE') {
+    return serializeMultiChoiceAnswer(parseMultiChoiceAnswer(value));
+  }
+
   if (isFreeFormQuestionType(questionType)) {
     return value.trim();
   }
@@ -315,13 +460,35 @@ export function normalizeQuestionAnswerValue(
 export function validateQuestionAnswer(
   questionType: QuestionType,
   value: string,
-  step: {
-    choiceOptions?: string[];
-    questionConfig?: QuestionConfig | null;
-  },
+  step: { questionConfig?: QuestionConfig | null },
 ): void {
   if (questionType === 'MULTI_CHOICE') {
-    throw new QuestionAnswerValidationError('Múltipla escolha ainda não está disponível');
+    const selected = parseMultiChoiceAnswer(value);
+    if (selected.length === 0) {
+      return;
+    }
+
+    const optionLabels = getChoiceOptionLabels(step);
+    for (const item of selected) {
+      if (!optionLabels.includes(item)) {
+        throw new QuestionAnswerValidationError('Opção inválida para esta etapa');
+      }
+    }
+
+    const config = step.questionConfig;
+    if (config?.minSelections !== undefined && selected.length < config.minSelections) {
+      throw new QuestionAnswerValidationError(
+        `Selecione ao menos ${config.minSelections} opção(ões)`,
+      );
+    }
+
+    if (config?.maxSelections !== undefined && selected.length > config.maxSelections) {
+      throw new QuestionAnswerValidationError(
+        `Selecione no máximo ${config.maxSelections} opção(ões)`,
+      );
+    }
+
+    return;
   }
 
   if (isChoiceQuestionType(questionType)) {
@@ -399,16 +566,26 @@ export function validateQuestionAnswer(
 }
 
 export function hasQuestionAnswer(value?: string | null): boolean {
-  return Boolean(value?.trim());
+  if (!value) {
+    return false;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  if (trimmed.startsWith('[')) {
+    return parseMultiChoiceAnswer(trimmed).length > 0;
+  }
+
+  return true;
 }
 
 export function getQuestionAnswerError(
   questionType: QuestionType,
   value: string,
-  step: {
-    choiceOptions?: string[];
-    questionConfig?: QuestionConfig | null;
-  },
+  step: { questionConfig?: QuestionConfig | null },
   isRequired: boolean,
 ): string | null {
   if (!hasQuestionAnswer(value)) {
@@ -427,7 +604,7 @@ export function getQuestionAnswerError(
 }
 
 export function isImplementedQuestionType(questionType?: QuestionType | null): boolean {
-  return questionType !== 'MULTI_CHOICE';
+  return Boolean(questionType);
 }
 
 export function getQuestionTypeLabel(questionType?: QuestionType | null): string {
@@ -457,14 +634,12 @@ export interface NormalizeQuestionStepInput {
   stepKind?: StepKindInput | null;
   questionType?: QuestionType | null;
   questionConfig?: QuestionConfig | null;
-  choiceOptions?: string[];
 }
 
 export interface NormalizedQuestionStep {
   stepKind: 'DOCUMENT' | 'QUESTION';
   questionType: QuestionType | null;
   questionConfig: QuestionConfig | null;
-  choiceOptions: string[];
 }
 
 export function normalizeQuestionStepInput(
@@ -477,25 +652,15 @@ export function normalizeQuestionStepInput(
       stepKind: 'DOCUMENT',
       questionType: null,
       questionConfig: null,
-      choiceOptions: [],
     };
   }
 
   const questionType = input.questionType ?? 'SINGLE_CHOICE';
-  const questionConfig = buildQuestionConfig(
-    questionType,
-    input.choiceOptions,
-    input.questionConfig,
-  );
-  const choiceOptions = getChoiceOptionLabels({
-    choiceOptions: input.choiceOptions,
-    questionConfig,
-  });
+  const questionConfig = buildQuestionConfig(questionType, input.questionConfig);
 
   return {
     stepKind: 'QUESTION',
     questionType,
     questionConfig,
-    choiceOptions,
   };
 }

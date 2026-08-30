@@ -10,6 +10,7 @@ import {
   hasQuestionAnswer,
   isQuestionStep,
   normalizeQuestionAnswerValue,
+  parseMultiChoiceAnswer,
   QuestionAnswerValidationError,
   validateQuestionAnswer,
   type QuestionType,
@@ -140,8 +141,12 @@ export class SubmissionsService {
 
     const questionType = (step.questionType ?? 'SINGLE_CHOICE') as QuestionType;
     const trimmedValue = dto.value.trim();
+    const isEmptyAnswer =
+      questionType === 'MULTI_CHOICE'
+        ? parseMultiChoiceAnswer(trimmedValue).length === 0
+        : !hasQuestionAnswer(trimmedValue);
 
-    if (!hasQuestionAnswer(trimmedValue)) {
+    if (isEmptyAnswer) {
       if (step.isRequired) {
         throw new BadRequestException('Resposta obrigatória');
       }
@@ -155,7 +160,6 @@ export class SubmissionsService {
 
     try {
       validateQuestionAnswer(questionType, trimmedValue, {
-        choiceOptions: step.choiceOptions,
         questionConfig: step.questionConfig as never,
       });
     } catch (error) {
@@ -307,7 +311,6 @@ export class SubmissionsService {
 
         try {
           validateQuestionAnswer((step.questionType ?? 'SINGLE_CHOICE') as QuestionType, answer!.value, {
-            choiceOptions: step.choiceOptions,
             questionConfig: step.questionConfig as never,
           });
         } catch (error) {
