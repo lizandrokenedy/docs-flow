@@ -112,9 +112,33 @@ Envie `eicar-test.pdf` em qualquer workflow público (ex.: `/w/abertura-conta`).
 
 Mais detalhes e comandos `curl`: [api/uploads.md](./api/uploads.md#testar-o-bloqueio-eicar)
 
+## Testes automatizados
+
+Os testes rodam em stack isolada via `docker-compose.test.yml` com variáveis em `.env.test` (copie de `.env.test.example`).
+
+```bash
+cp .env.test.example .env.test
+npm run test          # sobe Postgres + migrate + API de teste, roda Jest e derruba a stack
+npm run test:up       # mantém a stack no ar (útil com test:watch)
+npm run test:watch    # Jest em modo watch (rode test:up antes)
+npm run test:down     # derruba a stack de teste
+```
+
+A stack sobe Postgres efêmero, aplica migrations e valida que a API inicia (`api-test`). O Jest roda no container `test` com app Nest in-process, conectado ao banco pela rede interna — sem expor portas no host e sem poluir o `.env` de dev.
+
+**Cobertura mínima (80%):** services, utils, `app.factory` e `health.controller` na API; módulos de domínio em `packages/types`. ClamAV fica fora do relatório.
+
+Relatórios HTML em `coverage/api` e `coverage/types` após `npm run test`.
+
+**Pré-requisitos:** Docker em execução e arquivo `.env.test` na raiz (`cp .env.test.example .env.test`).
+
+**Serviços da stack:** `postgres-test` → `migrate-test` → `api-test` (healthcheck) → `test` (Jest).
+
 ## Scripts utilitários
 
 | Script | Descrição |
 |--------|-----------|
 | `./scripts/build.sh` | Sobe/para ambiente Docker (dev, prod) |
+| `npm run test` | Testes com cobertura (stack isolada) |
+| `npm run test:up` / `npm run test:down` | Mantém ou derruba a stack de teste |
 | `./scripts/generate-eicar-test-pdf.sh` | Gera PDF de teste para validar o ClamAV |

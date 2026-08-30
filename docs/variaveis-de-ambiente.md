@@ -41,6 +41,20 @@ Arquivo de referência: `.env.example`
 - `CLAMAV_HOST` é definido no Compose (`clamav`), não no `.env` — só `CLAMAV_ENABLED`, `CLAMAV_PORT` e `CLAMAV_TIMEOUT_MS` vêm do `.env`.
 - O `.env` na raiz do projeto é lido pelo Compose para portas e URLs expostas ao navegador.
 
+## Ambiente de testes
+
+Arquivo de referência: `.env.test.example` (copie para `.env.test`, que fica no `.gitignore`).
+
+Usado apenas por `docker-compose.test.yml`. Não misture com o `.env` de dev/prod.
+
+| Variável | Valor típico | Descrição |
+|----------|--------------|-----------|
+| `DATABASE_URL` | `postgresql://docsflow:docsflow@postgres-test:5432/docsflow_test?schema=public` | Postgres na rede interna do Compose de teste (`postgres-test`) |
+| `CLAMAV_ENABLED` | `false` | Desliga antivírus nos testes |
+| `UPLOAD_DIR` | `/app/uploads` | Uploads efêmeros no container |
+
+O host **não** expõe porta de banco para testes — tudo roda na rede Docker. Detalhes: [instalacao.md](./instalacao.md#testes-automatizados).
+
 ## Exemplo completo
 
 ```env

@@ -172,14 +172,16 @@ Melhorias que aumentam muito o valor para escritórios, RH e operações.
 
 **Situação atual:**
 
-- Nenhum arquivo `*.spec.ts` ou `*.test.ts` no repositório
-- Nenhum pipeline `.github/workflows`
+- Jest configurado na raiz (`jest.config.cjs`) com projetos `api` e `types`
+- Postgres efêmero + API dedicada para integração (`docker-compose.test.yml`, `.env.test`)
+- Testes de integração: workflows, submissões, tipos de documento
+- Testes unitários: `packages/types`, uploads, snapshot e helpers da API
+- Cobertura mínima de **80%** (statements/lines/functions) no código incluído no relatório
+- Sem pipeline `.github/workflows` ainda
 - Sem ESLint compartilhado (`packages/eslint-config` planejado, não implementado)
 
 **O que falta:**
 
-- Testes unitários na API (services, validações de upload)
-- Testes de integração (fluxo criar workflow → submeter → completar)
 - Testes E2E opcionais no wizard (Playwright/Cypress)
 - CI: lint + build + testes em cada PR
 - Healthcheck da API no `docker-compose` (Postgres e ClamAV já têm; a API ainda não)
@@ -285,7 +287,7 @@ Itens do código atual que podem ser refinados sem grandes features.
 | 6 | Admin: copiar link, filtros, ZIP, excluir | Alta | Baixo–médio | Copiar link e excluir feitos |
 | 7 | Retomada por e-mail | Alta | Médio | E-mail, item 3 |
 | 8 | Notificações | Alta | Médio | E-mail |
-| 9 | Testes + CI | Alta | Médio–alto | — |
+| 9 | Testes + CI | Alta | Médio–alto | Testes locais feitos; falta CI |
 | 10 | Etapas condicionais + tipos de pergunta | **Feito (MVP)** | — | — |
 | 11 | Caso/processo multi-participante | Média | Alto | Item 3, 5 |
 | 12 | LGPD (termo, retenção, auditoria) | Média | Médio–alto | Auth, logs |
@@ -312,7 +314,7 @@ Fase 2 — Identidade e operação
 Fase 3 — Produção
   → S3/MinIO + backup
   → E-mail (notificação + retomada)
-  → Testes + CI + healthcheck da API
+  → CI (GitHub Actions) + healthcheck da API
 
 Fase 4 — Produto avançado
   → Caso/processo com múltiplos herdeiros

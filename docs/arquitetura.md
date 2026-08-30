@@ -109,7 +109,10 @@ GET /uploads/{submissionId}/{stepId}/{storedName}
 
 - `docker-compose.dev.yml` — desenvolvimento com hot-reload e volumes montados
 - `docker-compose.yml` — build de produção local
+- `docker-compose.test.yml` — stack isolada para testes (Postgres efêmero, migrate, API de smoke test, runner Jest)
 
 Script unificado: `./scripts/build.sh dev|prod|down`
 
 Reset completo do banco: `npm run db:reset`
+
+Testes automatizados: `npm run test` (requer `.env.test` — veja [instalacao.md](./instalacao.md#testes-automatizados))

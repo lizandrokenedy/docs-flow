@@ -110,6 +110,7 @@ A sessão é salva no navegador (`localStorage`) para retomar depois.
 - Versionamento por snapshot nas submissões
 - Toast e copiar link no admin
 - Detalhe de submissão com respostas e documentos; exclusão de submissão
+- **Testes automatizados** (Jest + stack Docker isolada) — ver [instalacao.md](./instalacao.md#testes-automatizados)
 
 ## Limitações do MVP atual
 
@@ -120,4 +121,4 @@ Resumo das principais lacunas. Análise completa: **[roadmap-e-lacunas.md](./roa
 - Armazenamento de arquivos **local** (volume Docker), sem S3/MinIO
 - Sem notificações por e-mail
 - Sem exportação em lote de submissões
-- Sem testes automatizados nem CI
+- **Sem CI** (pipeline GitHub Actions ainda não configurado; testes rodam localmente via `npm run test`)
