@@ -16,6 +16,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { WorkflowVersionDetailSkeleton, WorkflowVersionHistorySkeleton } from '@/components/skeletons/PageSkeletons';
 
 interface VersionListItem {
   version: number;
@@ -81,7 +82,15 @@ export function WorkflowVersionHistory({
   });
 
   if (isLoading) {
-    return <Typography>Carregando histórico...</Typography>;
+    return (
+      <Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+          <HistoryIcon color="primary" />
+          <Typography variant="h6">Histórico de alterações</Typography>
+        </Box>
+        <WorkflowVersionHistorySkeleton />
+      </Box>
+    );
   }
 
   if (isError) {
@@ -164,7 +173,7 @@ export function WorkflowVersionHistory({
                 'Não foi possível carregar os detalhes desta versão.'}
             </Alert>
           ) : loadingDetail || (fetchingDetail && !versionDetail) ? (
-            <Typography color="text.secondary">Carregando alterações...</Typography>
+            <WorkflowVersionDetailSkeleton />
           ) : !versionDetail ? (
             <Typography color="text.secondary">Detalhes indisponíveis para esta versão.</Typography>
           ) : (

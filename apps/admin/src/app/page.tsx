@@ -16,6 +16,7 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 import { getPublicWorkflowUrl } from '@/lib/config';
 import { CopyLinkButton } from '@/components/CopyLinkButton';
+import { DashboardSkeleton } from '@/components/skeletons/PageSkeletons';
 
 interface WorkflowSummary {
   id: string;
@@ -34,18 +35,22 @@ interface SubmissionSummary {
 }
 
 export default function DashboardPage() {
-  const { data: workflows = [] } = useQuery({
+  const { data: workflows = [], isLoading: loadingWorkflows } = useQuery({
     queryKey: ['workflows'],
     queryFn: () => api.get<WorkflowSummary[]>('/workflows'),
   });
 
-  const { data: submissions = [] } = useQuery({
+  const { data: submissions = [], isLoading: loadingSubmissions } = useQuery({
     queryKey: ['submissions'],
     queryFn: () => api.get<SubmissionSummary[]>('/submissions'),
   });
 
   const activeWorkflows = workflows.filter((w) => w.isActive).length;
   const recentSubmissions = submissions.slice(0, 5);
+
+  if (loadingWorkflows || loadingSubmissions) {
+    return <DashboardSkeleton />;
+  }
 
   return (
     <Box>

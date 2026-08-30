@@ -24,6 +24,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useToast } from '@/components/ToastProvider';
 import { CopyLinkButton } from '@/components/CopyLinkButton';
+import { dataGridSkeletonLoadingProps } from '@/components/dataGridDefaults';
 import { api } from '@/lib/api';
 import { getPublicWorkflowUrl } from '@/lib/config';
 import { slugify } from '@docs-flow/types';
@@ -195,6 +196,7 @@ export default function WorkflowsPage() {
         rows={workflows}
         columns={columns}
         loading={isLoading}
+        {...dataGridSkeletonLoadingProps}
         autoHeight
         pageSizeOptions={[10, 25]}
         initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}

@@ -15,3 +15,4 @@ export { UploadReview } from './UploadReview';
 export type { UploadReviewProps, ReviewStep } from './UploadReview';
 export { SuccessScreen } from './SuccessScreen';
 export type { SuccessScreenProps } from './SuccessScreen';
+export { WizardLoadingSkeleton } from './WizardLoadingSkeleton';

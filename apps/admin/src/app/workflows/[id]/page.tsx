@@ -55,6 +55,7 @@ import { CopyLinkButton } from '@/components/CopyLinkButton';
 import { QuestionConfigEditor } from '@/components/QuestionConfigEditor';
 import { QuestionOptionsEditor } from '@/components/QuestionOptionsEditor';
 import { WorkflowVersionHistory } from '@/components/WorkflowVersionHistory';
+import { WorkflowEditorSkeleton } from '@/components/skeletons/PageSkeletons';
 import { api } from '@/lib/api';
 import { getPublicWorkflowUrl } from '@/lib/config';
 import type {
@@ -422,7 +423,7 @@ export default function WorkflowEditorPage() {
   };
 
   if (isLoading || !workflow) {
-    return <Typography>Carregando...</Typography>;
+    return <WorkflowEditorSkeleton />;
   }
 
   const sortedSteps = [...(workflow.steps || [])].sort((a, b) => a.position - b.position);

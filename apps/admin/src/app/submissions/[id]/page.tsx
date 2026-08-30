@@ -30,6 +30,7 @@ import { api } from '@/lib/api';
 import { getPublicWorkflowUrl, getUploadUrl } from '@/lib/config';
 import { CopyLinkButton } from '@/components/CopyLinkButton';
 import { DeleteSubmissionButton } from '@/components/DeleteSubmissionButton';
+import { SubmissionDetailSkeleton } from '@/components/skeletons/PageSkeletons';
 import { useClipboard } from '@/hooks/useClipboard';
 
 interface SubmissionDetail {
@@ -77,7 +78,7 @@ export default function SubmissionDetailPage() {
   });
 
   if (isLoading) {
-    return <Typography>Carregando...</Typography>;
+    return <SubmissionDetailSkeleton />;
   }
 
   if (error || !submission) {

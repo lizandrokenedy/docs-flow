@@ -7,6 +7,7 @@ import {
   StepInstructions,
   SuccessScreen,
   UploadReview,
+  WizardLoadingSkeleton,
   WorkflowStepper,
   type UploadedFile,
 } from '@docs-flow/ui';
@@ -32,7 +33,6 @@ import {
   Alert,
   Box,
   Button,
-  CircularProgress,
   Container,
   Typography,
 } from '@mui/material';
@@ -378,11 +378,7 @@ export default function WorkflowWizardPage() {
   };
 
   if (loadingWorkflow || !sessionReady) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-        <CircularProgress />
-      </Box>
-    );
+    return <WizardLoadingSkeleton />;
   }
 
   if (workflowError || !workflow) {
@@ -417,11 +413,7 @@ export default function WorkflowWizardPage() {
     (submissionId && loadingSubmission && !submissionIsError) ||
     createSubmissionMutation.isPending
   ) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-        <CircularProgress />
-      </Box>
-    );
+    return <WizardLoadingSkeleton />;
   }
 
   if (!submission) {

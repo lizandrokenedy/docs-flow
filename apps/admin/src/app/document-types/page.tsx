@@ -18,6 +18,7 @@ import { DataGrid, GridColDef } from '@mui/x-data-grid';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useToast } from '@/components/ToastProvider';
+import { dataGridSkeletonLoadingProps } from '@/components/dataGridDefaults';
 import { api } from '@/lib/api';
 import type { DocumentType } from '@docs-flow/types';
 import { bytesToMegabytes, megabytesToBytes } from '@docs-flow/types';
@@ -171,6 +172,7 @@ export default function DocumentTypesPage() {
         rows={documentTypes}
         columns={columns}
         loading={isLoading}
+        {...dataGridSkeletonLoadingProps}
         autoHeight
         pageSizeOptions={[10, 25]}
         initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}

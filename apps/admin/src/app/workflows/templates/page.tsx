@@ -18,6 +18,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/components/ToastProvider';
+import { TemplatesPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import { api } from '@/lib/api';
 import { slugify } from '@docs-flow/types';
 import type { Workflow, WorkflowStep } from '@docs-flow/types';
@@ -143,7 +144,7 @@ export default function TemplateLibraryPage() {
       )}
 
       {isLoading ? (
-        <Typography>Carregando templates...</Typography>
+        <TemplatesPageSkeleton />
       ) : filtered.length === 0 ? (
         <Typography color="text.secondary">
           Nenhum template disponível. Marque um workflow como template no editor.

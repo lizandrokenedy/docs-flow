@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { DeleteSubmissionButton } from '@/components/DeleteSubmissionButton';
+import { dataGridSkeletonLoadingProps } from '@/components/dataGridDefaults';
 import { api } from '@/lib/api';
 
 interface SubmissionRow {
@@ -112,6 +113,7 @@ export default function SubmissionsPage() {
         rows={submissions}
         columns={columns}
         loading={isLoading}
+        {...dataGridSkeletonLoadingProps}
         autoHeight
         pageSizeOptions={[10, 25, 50]}
         initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
