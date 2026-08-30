@@ -108,7 +108,7 @@ A sessão é salva no navegador (`localStorage`) para retomar depois.
 - Templates reutilizáveis, biblioteca com preview e duplicação de workflows
 - Histórico de versões com diff legível no admin
 - Versionamento por snapshot nas submissões
-- Toast e copiar link no admin
+- Toast, copiar link e skeletons de loading no admin
 - Detalhe de submissão com respostas e documentos; exclusão de submissão
 - **Testes automatizados** (Jest + stack Docker isolada) — ver [instalacao.md](./instalacao.md#testes-automatizados)
 
@@ -117,7 +117,7 @@ A sessão é salva no navegador (`localStorage`) para retomar depois.
 Resumo das principais lacunas. Análise completa: **[roadmap-e-lacunas.md](./roadmap-e-lacunas.md)**.
 
 - **Sem autenticação** no admin nem na API
-- **Sem identificação do remetente** nas submissões (nome, e-mail, CPF)
+- **Sem metadados do remetente** nas submissões (nome, e-mail, campos customizados)
 - Armazenamento de arquivos **local** (volume Docker), sem S3/MinIO
 - Sem notificações por e-mail
 - Sem exportação em lote de submissões
