@@ -14,7 +14,7 @@ export default async function globalSetup() {
   const apiDir = resolve(__dirname, '..');
   const env = { ...process.env, DATABASE_URL: databaseUrl };
 
-  execSync('npx prisma generate --schema=prisma/schema.prisma', {
+  execSync('npx prisma generate', {
     cwd: apiDir,
     stdio: 'inherit',
     env,
@@ -22,7 +22,7 @@ export default async function globalSetup() {
 
   // No compose, migrate-test já aplicou as migrations antes do runner subir.
   if (!process.env.TEST_API_URL) {
-    execSync('npx prisma migrate deploy --schema=prisma/schema.prisma', {
+    execSync('npx prisma migrate deploy', {
       cwd: apiDir,
       stdio: 'inherit',
       env,

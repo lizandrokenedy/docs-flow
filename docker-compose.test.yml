@@ -1,16 +1,19 @@
 # Stack isolada para testes: Postgres efêmero + API + runner Jest.
-# Uso: npm run test
+# Uso: npm run test (chama ensure-docker-deps antes para node_modules no host)
+
+name: docs-flow-test
 
 x-test-api-build: &test-api-build
-  build:
-    context: .
-    dockerfile: apps/api/Dockerfile
-    target: dev
+  image: node:22-alpine
+  user: '${DEV_UID:-1000}:${DEV_GID:-1000}'
+  working_dir: /app
   env_file: .env.test
+  environment:
+    HOME: /tmp
+    NPM_CONFIG_UPDATE_NOTIFIER: 'false'
+    PRISMA_HIDE_UPDATE_MESSAGE: '1'
   volumes:
     - .:/app
-    - /app/node_modules
-    - /app/apps/api/node_modules
 
 services:
   postgres-test:
@@ -35,8 +38,8 @@ services:
     working_dir: /app/apps/api
     restart: 'no'
     command: >
-      sh -c "npx prisma generate --schema=prisma/schema.prisma &&
-             npx prisma migrate deploy --schema=prisma/schema.prisma"
+      sh -c "npx prisma generate &&
+             npx prisma migrate deploy"
 
   api-test:
     <<: *test-api-build
@@ -60,7 +63,7 @@ services:
       sh -c "set -e &&
              npm run build --workspace=@docs-flow/types &&
              cd apps/api &&
-             npx prisma generate --schema=prisma/schema.prisma &&
+             npx prisma generate &&
              npx nest build &&
              exec node dist/main.js"
 

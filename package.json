@@ -7,28 +7,30 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "turbo dev",
-    "docker:dev": "bash scripts/build.sh dev",
-    "docker:prod": "bash scripts/build.sh prod",
-    "docker:down": "bash scripts/build.sh down",
-    "build": "turbo build",
-    "lint": "turbo lint",
-    "db:migrate": "docker compose -f docker-compose.dev.yml run --rm migrate",
-    "db:seed": "docker compose -f docker-compose.dev.yml run --rm seed",
-    "db:generate": "docker compose -f docker-compose.dev.yml run --rm migrate sh -c \"npx prisma generate --schema=prisma/schema.prisma\"",
+    "dev": "bash scripts/build.sh dev",
+    "prod": "bash scripts/build.sh prod",
+    "down": "bash scripts/build.sh down",
+    "install": "bash scripts/docker-install.sh",
+    "db:migrate": "bash scripts/ensure-docker-deps.sh && bash -c 'export DEV_UID=$(id -u) DEV_GID=$(id -g); docker compose -f docker-compose.dev.yml --profile setup run --rm migrate'",
+    "db:seed": "bash scripts/ensure-docker-deps.sh && bash -c 'export DEV_UID=$(id -u) DEV_GID=$(id -g); docker compose -f docker-compose.dev.yml --profile setup run --rm seed'",
+    "db:generate": "bash scripts/ensure-docker-deps.sh && bash -c 'export DEV_UID=$(id -u) DEV_GID=$(id -g); docker compose -f docker-compose.dev.yml --profile setup run --rm install sh -c \"cd apps/api && npx prisma generate\"'",
     "db:reset": "docker compose -f docker-compose.dev.yml down -v && docker compose -f docker-compose.dev.yml up -d postgres && sleep 3 && npm run db:migrate && npm run db:seed",
-    "test": "docker compose -f docker-compose.test.yml run --rm test && npm run test:down",
-    "test:up": "docker compose -f docker-compose.test.yml up -d --wait api-test",
+    "test": "bash scripts/ensure-docker-deps.sh && bash -c 'export DEV_UID=$(id -u) DEV_GID=$(id -g); docker compose -f docker-compose.test.yml run --rm test' && npm run test:down",
+    "test:up": "bash -c 'export DEV_UID=$(id -u) DEV_GID=$(id -g); docker compose -f docker-compose.test.yml up -d --wait api-test'",
     "test:down": "docker compose -f docker-compose.test.yml down -v",
-    "test:watch": "docker compose -f docker-compose.test.yml run --rm test npx jest --watch --coverage=false"
+    "test:watch": "bash scripts/ensure-docker-deps.sh && bash -c 'export DEV_UID=$(id -u) DEV_GID=$(id -g); docker compose -f docker-compose.test.yml run --rm test npx jest --watch --coverage=false'"
   },
   "devDependencies": {
-    "jest": "^29.7.0",
+    "jest": "^30.5.0",
     "prettier": "^3.5.3",
-    "turbo": "^2.5.4",
     "typescript": "^5.8.3"
   },
   "engines": {
     "node": ">=20"
+  },
+  "overrides": {
+    "test-exclude": {
+      "glob": "13.0.6"
+    }
   }
 }

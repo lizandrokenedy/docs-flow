@@ -21,24 +21,32 @@ Sistema de workflow de documentos com monorepo.
 
 ## Execução (Docker)
 
-Mesmo padrão do projeto **agendamento**: um script com subcomandos.
+Mesmo padrão do projeto **agendamento**: um script com subcomandos (atalhos via `npm run`).
 
 ```bash
 chmod +x scripts/build.sh
 
 # Dev com hot-reload (postgres + clamav + api + admin + web)
-./scripts/build.sh dev
+npm run dev
+# ou: ./scripts/build.sh dev
 
-# Prod local
-./scripts/build.sh prod
+# Prod local (imagens Docker)
+npm run prod
 
-# Derrubar
-./scripts/build.sh down
-./scripts/build.sh down dev --volumes   # remove volumes também
+# Derrubar dev e prod
+npm run down
 
-# Reset rápido do banco (sem rebuild completo)
+# Instalar/sync deps no host via Docker (IDE)
+npm run install
+
+# Reset rápido do banco dev (sem rebuild completo)
 npm run db:reset
+
+# Derrubar com remoção de volumes (apaga banco/uploads do alvo)
+./scripts/build.sh down dev --volumes
 ```
+
+Dev e prod usam **volumes Docker separados** (banco e uploads não se misturam). Ver [docs/instalacao.md](./docs/instalacao.md#dev-e-prod-isolados).
 
 - Admin: http://localhost:3001
 - Web: http://localhost:3000/w/abertura-conta
@@ -79,5 +87,7 @@ packages/
   ui/      # Componentes MUI compartilhados
 scripts/
   build.sh                    # dev | prod | down
+  docker-install.sh           # install via Docker (npm run install)
+  docker-clean-artifacts.sh   # limpa root-owned node_modules, dist, .next, coverage
   generate-eicar-test-pdf.sh  # PDF de teste para ClamAV
 ```

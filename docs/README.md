@@ -64,8 +64,9 @@ Sistema de coleta guiada de documentos. Permite criar **workflows** (fluxos) com
 
 | Script | Descrição |
 |--------|-----------|
+| `npm run dev` / `npm run prod` / `npm run down` / `npm run install` | Atalhos Docker — [instalacao.md](./instalacao.md) |
 | `./scripts/build.sh` | Ambiente Docker (dev / prod / down) |
-| `npm run db:reset` | Recria banco (volumes + migrate + seed) |
+| `npm run db:reset` | Recria banco **dev** (volumes + migrate + seed) |
 | `npm run test` | Testes com cobertura (stack Docker isolada) — [detalhes](./instalacao.md#testes-automatizados) |
 | `npm run test:up` / `npm run test:down` | Sobe ou derruba a stack de teste |
 | `./scripts/generate-eicar-test-pdf.sh` | PDF de teste EICAR para validar antivírus |

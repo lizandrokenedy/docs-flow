@@ -62,36 +62,53 @@ require_env_file() {
   exit 1
 }
 
-down_compose() {
-  local compose_file="$1"
-  local label="$2"
-
-  if [[ ! -f "$compose_file" ]]; then
-    echo "Arquivo não encontrado: $compose_file"
-    return 1
-  fi
-
-  echo "Derrubando $label ($compose_file)..."
-
+down_dev_compose() {
   local args=(down --remove-orphans)
   if [[ "$REMOVE_VOLUMES" == true ]]; then
     args+=(-v)
   fi
 
-  docker compose -f "$compose_file" "${args[@]}"
+  echo "Derrubando dev (docker-compose.dev.yml)..."
+  docker compose -f docker-compose.dev.yml "${args[@]}"
+}
+
+down_prod_compose() {
+  local args=(down --remove-orphans)
+  if [[ "$REMOVE_VOLUMES" == true ]]; then
+    args+=(-v)
+  fi
+
+  echo "Derrubando prod (docker-compose.yml)..."
+  # Projeto legado (nome da pasta) e projeto explícito no compose (docs-flow-prod)
+  docker compose -p docs-flow -f docker-compose.yml "${args[@]}" 2>/dev/null || true
+  docker compose -p docs-flow-prod -f docker-compose.yml "${args[@]}" 2>/dev/null || true
+}
+
+warn_ports_still_in_use() {
+  local port="$1"
+  local holders
+  holders="$(docker ps --format '{{.Names}}' --filter "publish=${port}" 2>/dev/null || true)"
+  if [[ -n "$holders" ]]; then
+    echo "Aviso: porta ${port} ainda em uso por: ${holders}"
+    echo "  Rode: npm run down   ou   docker stop ${holders//$'\n'/ }"
+  fi
 }
 
 run_down() {
   case "$DOWN_TARGET" in
     dev)
-      down_compose "docker-compose.dev.yml" "dev"
+      down_dev_compose
       ;;
     prod)
-      down_compose "docker-compose.yml" "prod"
+      down_prod_compose
       ;;
     all)
-      down_compose "docker-compose.dev.yml" "dev" || true
-      down_compose "docker-compose.yml" "prod" || true
+      down_dev_compose || true
+      down_prod_compose || true
+      warn_ports_still_in_use "${POSTGRES_PORT}"
+      warn_ports_still_in_use "${WEB_PORT}"
+      warn_ports_still_in_use "${ADMIN_PORT}"
+      warn_ports_still_in_use "${API_PORT}"
       ;;
     *)
       echo "Alvo inválido para down: $DOWN_TARGET"
@@ -102,6 +119,17 @@ run_down() {
 
   echo ""
   echo "Containers derrubados."
+}
+
+COMPOSE_DEV=(docker compose -f docker-compose.dev.yml --profile setup)
+
+ensure_prod_volumes() {
+  docker volume create docs-flow_postgres_data >/dev/null 2>&1 || true
+  docker volume create docs-flow_uploads_data >/dev/null 2>&1 || true
+}
+
+run_dev_install() {
+  bash "${SCRIPT_DIR}/docker-install.sh"
 }
 
 run_up() {
@@ -123,30 +151,56 @@ run_up() {
 
   if [[ "$DOWN_FIRST" == true ]]; then
     echo "Parando containers existentes..."
-    docker compose -f "$compose_file" down --remove-orphans
+    if [[ "$ENV_TARGET" == "dev" ]]; then
+      down_dev_compose
+    else
+      down_prod_compose
+    fi
   fi
 
-  echo "Build do ambiente ${ENV_TARGET}..."
-  # shellcheck disable=SC2086
-  docker compose -f "$compose_file" build $NO_CACHE
+  if [[ "$ENV_TARGET" == "dev" ]]; then
+    export DEV_UID="$(id -u)"
+    export DEV_GID="$(id -g)"
+    echo "Parando ambiente prod (portas e volumes isolados do dev)..."
+    down_prod_compose
+    run_dev_install
+  else
+    echo "Parando ambiente dev (portas e volumes isolados do prod)..."
+    down_dev_compose || true
+    ensure_prod_volumes
+    echo "Build do ambiente ${ENV_TARGET}..."
+    # shellcheck disable=SC2086
+    docker compose -f "$compose_file" build $NO_CACHE
+  fi
 
   echo "Subindo banco e antivírus..."
   docker compose -f "$compose_file" up -d postgres clamav
 
-  echo "Aplicando migrations..."
-  docker compose -f "$compose_file" run --rm migrate
+  if [[ "$ENV_TARGET" == "dev" ]]; then
+    echo "Aplicando migrations..."
+    "${COMPOSE_DEV[@]}" run --rm migrate
 
-  echo "Executando seed..."
-  docker compose -f "$compose_file" run --rm seed
+    echo "Executando seed..."
+    "${COMPOSE_DEV[@]}" run --rm seed
 
-  echo "Subindo aplicação..."
-  docker compose -f "$compose_file" up -d
+    echo "Subindo aplicação..."
+    docker compose -f "$compose_file" up -d
+  else
+    echo "Aplicando migrations..."
+    docker compose -f "$compose_file" run --rm migrate
+
+    echo "Executando seed..."
+    docker compose -f "$compose_file" run --rm seed
+
+    echo "Subindo aplicação..."
+    docker compose -f "$compose_file" up -d
+  fi
 
   local postgres_port
   postgres_port="$(get_env_value "$PROJECT_DIR" POSTGRES_PORT "$POSTGRES_PORT")"
 
   echo ""
-  echo "Ambiente '$ENV_TARGET' em execução."
+  echo "Ambiente '$ENV_TARGET' em execução (banco e uploads em volume isolado deste ambiente)."
   echo "  Web (público):  http://localhost:${WEB_PORT}/w/abertura-conta"
   echo "  Admin:          http://localhost:${ADMIN_PORT}"
   echo "  API:            http://localhost:${API_PORT}"

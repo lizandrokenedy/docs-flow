@@ -1,7 +1,10 @@
 node_modules
 dist
 .next
-.turbo
+# Artefatos de tsc emitidos por engano em src/ (o build correto vai em dist/)
+packages/*/src/**/*.js
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.js.map
 .env
 .env.local
 .env.test

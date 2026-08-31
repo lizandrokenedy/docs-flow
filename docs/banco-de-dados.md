@@ -177,21 +177,29 @@ Lógica compartilhada em `packages/types/src/workflow-logic.ts`:
 
 ## Migrations e seed
 
-Executados automaticamente ao subir o container da API (`docker-compose.dev.yml` e `docker-compose.yml`).
+Executados automaticamente ao subir dev ou prod (`build.sh` roda `migrate` e `seed` antes da API). O seed é idempotente (upsert de templates e workflows iniciais).
 
-Para rodar o seed manualmente no container:
+Comandos manuais (dev):
 
 ```bash
-docker exec docs-flow-api-1 sh -c "cd /app && npm run seed --workspace=@docs-flow/api"
+npm run db:migrate
+npm run db:seed
 ```
 
-Para recriar o banco do zero:
+Seed dentro do container em execução (ajuste o nome do container):
+
+```bash
+# dev: docs-flow-dev-api-1 | prod: docs-flow-prod-api-1
+docker exec docs-flow-dev-api-1 sh -c "cd /app/apps/api && npx prisma db seed"
+```
+
+Para recriar o banco **dev** do zero:
 
 ```bash
 npm run db:reset
 # ou
 ./scripts/build.sh down dev --volumes
-./scripts/build.sh dev
+npm run dev
 ```
 
 ## Seed

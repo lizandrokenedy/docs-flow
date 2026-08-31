@@ -1,3 +1,5 @@
+name: docs-flow-prod
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -36,7 +38,7 @@ services:
         condition: service_healthy
     working_dir: /app/apps/api
     restart: 'no'
-    command: npx prisma migrate deploy --schema=prisma/schema.prisma
+    command: npx prisma migrate deploy
 
   seed:
     build:
@@ -50,7 +52,7 @@ services:
         condition: service_completed_successfully
     working_dir: /app/apps/api
     restart: 'no'
-    command: npx prisma db seed --schema=prisma/schema.prisma
+    command: npx prisma db seed
 
   api:
     build:
@@ -88,6 +90,8 @@ services:
     ports:
       - '3001:3001'
     environment:
+      PORT: 3001
+      HOSTNAME: 0.0.0.0
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
       NEXT_PUBLIC_WEB_URL: ${NEXT_PUBLIC_WEB_URL:-http://localhost:3000}
     depends_on:
@@ -100,10 +104,15 @@ services:
     ports:
       - '3000:3000'
     environment:
+      HOSTNAME: 0.0.0.0
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
     depends_on:
       - api
 
 volumes:
   postgres_data:
+    name: docs-flow_postgres_data
+    external: true
   uploads_data:
+    name: docs-flow_uploads_data
+    external: true

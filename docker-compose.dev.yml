@@ -1,3 +1,21 @@
+# Desenvolvimento: dependências e builds de pacotes rodam no Docker e refletem no host
+# (node_modules, packages/*/dist). Não é necessário npm install local.
+#
+# Uso: ./scripts/build.sh dev
+
+name: docs-flow-dev
+
+x-dev-base: &dev-base
+  image: node:22-alpine
+  user: '${DEV_UID:-1000}:${DEV_GID:-1000}'
+  working_dir: /app
+  volumes:
+    - .:/app
+  environment:
+    HOME: /tmp
+    NPM_CONFIG_UPDATE_NOTIFIER: 'false'
+    PRISMA_HIDE_UPDATE_MESSAGE: '1'
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -26,53 +44,49 @@ services:
       retries: 5
       start_period: 120s
 
+  install:
+    <<: *dev-base
+    profiles: [setup]
+    restart: 'no'
+    command: >
+      sh -c "LOCKFILE=node_modules/.package-lock.json &&
+             if [ ! -d node_modules/@docs-flow/types ] || [ ! -f \"$$LOCKFILE\" ] || ! cmp -s package-lock.json \"$$LOCKFILE\"; then
+               npm install --ignore-scripts;
+             else
+               echo 'node_modules up to date, skipping npm install';
+             fi &&
+             npm run build --workspace=@docs-flow/types &&
+             npm run build --workspace=@docs-flow/ui &&
+             cd apps/api && npx prisma generate"
+
   migrate:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
-      target: dev
+    <<: *dev-base
+    profiles: [setup]
     environment:
       DATABASE_URL: postgresql://docsflow:docsflow@postgres:5432/docsflow?schema=public
-    volumes:
-      - ./apps/api:/app/apps/api
-      - ./packages:/app/packages
-      - /app/node_modules
-      - /app/apps/api/node_modules
     depends_on:
       postgres:
         condition: service_healthy
-    working_dir: /app/apps/api
     restart: 'no'
     command: >
-      sh -c "npx prisma generate --schema=prisma/schema.prisma &&
-             npx prisma migrate deploy --schema=prisma/schema.prisma"
+      sh -c "cd apps/api &&
+             npx prisma migrate deploy"
 
   seed:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
-      target: dev
+    <<: *dev-base
+    profiles: [setup]
     environment:
       DATABASE_URL: postgresql://docsflow:docsflow@postgres:5432/docsflow?schema=public
-    volumes:
-      - ./apps/api:/app/apps/api
-      - ./packages:/app/packages
-      - /app/node_modules
-      - /app/apps/api/node_modules
     depends_on:
-      migrate:
-        condition: service_completed_successfully
-    working_dir: /app/apps/api
+      postgres:
+        condition: service_healthy
     restart: 'no'
     command: >
-      sh -c "npx prisma generate --schema=prisma/schema.prisma &&
-             npx prisma db seed --schema=prisma/schema.prisma"
+      sh -c "cd apps/api &&
+             npx prisma db seed"
 
   api:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
-      target: dev
+    <<: *dev-base
     ports:
       - '4000:4000'
     environment:
@@ -86,40 +100,25 @@ services:
       CLAMAV_PORT: 3310
       CLAMAV_TIMEOUT_MS: ${CLAMAV_TIMEOUT_MS:-60000}
     volumes:
-      - ./apps/api:/app/apps/api
-      - ./packages:/app/packages
+      - .:/app
       - uploads_data:/app/uploads
-      - /app/node_modules
-      - /app/apps/api/node_modules
     depends_on:
       postgres:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
-      seed:
-        condition: service_completed_successfully
       clamav:
         condition: service_healthy
-    working_dir: /app
     command: >
-      sh -c "cd apps/api && npx prisma generate --schema=prisma/schema.prisma &&
+      sh -c "npm run build --workspace=@docs-flow/types &&
+             cd apps/api && npx prisma generate &&
              cd /app && npm run dev --workspace=@docs-flow/api"
 
   admin:
-    build:
-      context: .
-      dockerfile: apps/admin/Dockerfile
-      target: dev
+    <<: *dev-base
     ports:
       - '3001:3001'
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:4000
       NEXT_PUBLIC_WEB_URL: http://localhost:3000
-    volumes:
-      - ./apps/admin:/app/apps/admin
-      - ./packages:/app/packages
-      - /app/node_modules
-      - /app/apps/admin/node_modules
     depends_on:
       - api
     command: >
@@ -127,19 +126,11 @@ services:
              npm run dev --workspace=@docs-flow/admin"
 
   web:
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
-      target: dev
+    <<: *dev-base
     ports:
       - '3000:3000'
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:4000
-    volumes:
-      - ./apps/web:/app/apps/web
-      - ./packages:/app/packages
-      - /app/node_modules
-      - /app/apps/web/node_modules
     depends_on:
       - api
     command: >
@@ -148,4 +139,6 @@ services:
 
 volumes:
   postgres_data:
+    name: docs-flow-dev_postgres_data
   uploads_data:
+    name: docs-flow-dev_uploads_data

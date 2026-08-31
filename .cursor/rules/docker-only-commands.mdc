@@ -1,0 +1,13 @@
+---
+description: Executa npm/node/Prisma/Jest via Docker neste repo; não use npm install local
+alwaysApply: true
+---
+
+# Docker-only — docs-flow
+
+Antes de rodar **qualquer** comando de shell com `npm`, `npx`, `node`, `jest`, `prisma` ou `nest` neste repositório, leia e siga a skill **docker-only** em `.cursor/skills/docker-only/SKILL.md`.
+
+- Preferir scripts: `npm run dev`, `npm run prod`, `npm run down`, `npm run install`, `npm run test`, `npm run db:*`, `./scripts/build.sh`.
+- Não executar `npm install` / `npm ci` no host.
+- Runtime canônico: `node:22-alpine` via `docker-compose.dev.yml` / `docker-compose.test.yml`.
+- Exportar `DEV_UID` e `DEV_GID` antes de `docker compose run` em dev/test.

@@ -2,7 +2,7 @@
 
 ## Monorepo
 
-O projeto usa **npm workspaces** + **Turborepo**:
+O projeto usa **npm workspaces**:
 
 ```
 docs-flow/
@@ -13,7 +13,7 @@ docs-flow/
 ├── packages/
 │   ├── types/        # Schemas Zod, tipos TS, utilitários
 │   └── ui/           # Componentes MUI compartilhados
-├── scripts/          # build.sh, generate-eicar-test-pdf.sh, common.sh
+├── scripts/          # build.sh, docker-install.sh, docker-clean-artifacts.sh, …
 └── docs/             # Esta documentação
 ```
 
@@ -71,6 +71,16 @@ Contratos compartilhados:
 
 Usado pela API, web e admin para manter regras de visibilidade e validação consistentes.
 
+### Como o pacote é consumido
+
+| App | Resolução em dev |
+|-----|------------------|
+| API (NestJS) | Dependência de workspace em `package.json`; tipos em `packages/types/dist/` após build |
+| Web / Admin (Next.js) | `transpilePackages: ['@docs-flow/types']` no `next.config.js` |
+| Jest (API) | `moduleNameMapper` aponta ao source em `packages/types/src/` (só nos testes) |
+
+No desenvolvimento com Docker, o serviço `install` compila o pacote e popula `node_modules/@docs-flow/types` no host — não é preciso alterar `tsconfig` da API nem instalar npm localmente.
+
 ## Pacote `@docs-flow/ui`
 
 Componentes visuais reutilizados no wizard público e na biblioteca de templates:
@@ -107,12 +117,16 @@ GET /uploads/{submissionId}/{stepId}/{storedName}
 
 ## Docker
 
-- `docker-compose.dev.yml` — desenvolvimento com hot-reload e volumes montados
-- `docker-compose.yml` — build de produção local
-- `docker-compose.test.yml` — stack isolada para testes (Postgres efêmero, migrate, API de smoke test, runner Jest)
+| Compose | Projeto Compose | Uso |
+|---------|-----------------|-----|
+| `docker-compose.dev.yml` | `docs-flow-dev` | Dev com hot-reload e bind mount do código |
+| `docker-compose.yml` | `docs-flow-prod` | Build de imagens e prod local |
+| `docker-compose.test.yml` | `docs-flow-test` | Stack isolada para Jest |
 
-Script unificado: `./scripts/build.sh dev|prod|down`
+Script unificado: `./scripts/build.sh dev|prod|down` (atalhos: `npm run dev`, `npm run prod`, `npm run down`).
 
-Reset completo do banco: `npm run db:reset`
+**Volumes persistentes (dev vs prod):** banco e uploads usam volumes Docker distintos — dados de um ambiente não aparecem no outro. Ver [instalacao.md](./instalacao.md#dev-e-prod-isolados).
+
+Reset completo do banco **dev**: `npm run db:reset`
 
 Testes automatizados: `npm run test` (requer `.env.test` — veja [instalacao.md](./instalacao.md#testes-automatizados))
