@@ -85,6 +85,16 @@ services:
       sh -c "cd apps/api &&
              npx prisma db seed"
 
+  uploads-init:
+    image: node:22-alpine
+    user: root
+    restart: 'no'
+    volumes:
+      - uploads_data:/app/uploads
+    command: >
+      sh -c "chown -R ${DEV_UID:-1000}:${DEV_GID:-1000} /app/uploads &&
+             chmod 775 /app/uploads"
+
   api:
     <<: *dev-base
     ports:
@@ -107,6 +117,8 @@ services:
         condition: service_healthy
       clamav:
         condition: service_healthy
+      uploads-init:
+        condition: service_completed_successfully
     command: >
       sh -c "npm run build --workspace=@docs-flow/types &&
              cd apps/api && npx prisma generate &&

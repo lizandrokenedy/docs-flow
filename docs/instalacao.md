@@ -177,6 +177,16 @@ docker compose -f docker-compose.dev.yml logs -f clamav
 docker compose -f docker-compose.dev.yml ps
 ```
 
+### Upload com Internal Server Error (permissão em `/app/uploads`)
+
+O volume `docs-flow-dev_uploads_data` é criado como `root`. A API em dev roda com `DEV_UID`/`DEV_GID` do host e não consegue gravar. O serviço `uploads-init` corrige o dono na subida.
+
+Para corrigir o volume já existente sem recriar:
+
+```bash
+docker exec -u root docs-flow-dev-api-1 chown -R "$(id -u):$(id -g)" /app/uploads
+```
+
 ### `apps/*/.next` com permissão errada (após `npm run prod`)
 
 O build de prod cria `apps/web/.next` e `apps/admin/.next` com dono `root`. Ao voltar ao dev, `next dev` pode falhar com `EACCES`. O `build.sh dev` e `docker-clean-artifacts.sh` detectam e removem esses diretórios automaticamente.
